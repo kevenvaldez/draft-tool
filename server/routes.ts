@@ -270,6 +270,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/ktc/rankings", async (req, res) => {
     try {
       const forceRefresh = req.query.refresh === 'true';
+      
+      // If not forcing refresh, use cached database data for speed
+      if (!forceRefresh) {
+        const players = await storage.getAllPlayers();
+        const ktcPlayers = players
+          .filter(p => p.ktc_value && p.ktc_value > 0)
+          .sort((a, b) => (b.ktc_value || 0) - (a.ktc_value || 0))
+          .map(p => ({
+            name: `${p.first_name} ${p.last_name}`,
+            team: p.team,
+            position: p.position,
+            value: p.ktc_value
+          }));
+        
+        return res.json({
+          players: ktcPlayers,
+          lastUpdated: new Date().toISOString(),
+          source: 'cached'
+        });
+      }
+      
+      // Only scrape if explicitly requested
       const rankings = await ktcService.getRankings(forceRefresh);
       res.json(rankings);
     } catch (error) {
@@ -517,17 +539,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Player Management Routes
   app.get("/api/players", async (req, res) => {
     try {
-      const { position, team, search, available, skipEnrichment } = req.query;
+      const { position, team, search, available } = req.query;
       let players = await storage.getAllPlayers();
 
-      // Filter out non-rostered players by default
+      // Filter for active NFL players with KTC values (our cached data)
       players = players.filter(p => 
         p.team && 
         p.team !== 'FA' && 
         p.team !== null && 
         p.status === 'Active' &&
         p.position &&
-        ['QB', 'RB', 'WR', 'TE'].includes(p.position)
+        ['QB', 'RB', 'WR', 'TE'].includes(p.position) &&
+        p.ktc_value && // Only include players with KTC values (our live data)
+        p.ktc_value > 0
       );
 
       // Apply additional filters
@@ -547,20 +571,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
 
-      // Skip KTC enrichment for faster initial loading if skipEnrichment=true
-      if (skipEnrichment !== 'true') {
-        // Only enrich missing KTC values for a subset to avoid slowdowns
-        const playersNeedingEnrichment = players.filter(p => !p.ktc_value && p.first_name && p.last_name).slice(0, 10);
-        
-        for (const player of playersNeedingEnrichment) {
-          const fullName = `${player.first_name} ${player.last_name}`;
-          const value = await ktcService.getPlayerValue(fullName, player.position || undefined);
-          if (value) {
-            await storage.updatePlayer(player.id, { ktc_value: value });
-            player.ktc_value = value;
-          }
-        }
-      }
+      // Sort by KTC value (highest first) for better draft recommendations
+      players.sort((a, b) => (b.ktc_value || 0) - (a.ktc_value || 0));
+
+      // No KTC enrichment needed - we have perfect cached data!
+      // This dramatically improves loading speed
 
       res.json(players);
     } catch (error) {
