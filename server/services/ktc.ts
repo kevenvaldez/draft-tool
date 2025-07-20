@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { findPlayerValue, findPlayerValueFlexible, dynastyValues } from './ktc-values';
 
 export interface KTCPlayer {
   name: string;
@@ -168,6 +169,13 @@ export class KTCService {
 
   async getPlayerValue(playerName: string, position?: string): Promise<number | null> {
     try {
+      // First try our curated dynasty values for accurate rankings
+      const curated = findPlayerValueFlexible(playerName, position);
+      if (curated) {
+        return curated;
+      }
+      
+      // Fall back to scraped rankings for other players
       const rankings = await this.getRankings();
       
       // First try exact match

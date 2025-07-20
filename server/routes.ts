@@ -327,6 +327,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update all KTC values with curated data
+  app.post("/api/ktc/update-values", async (req, res) => {
+    try {
+      const { updateAllKTCValues } = await import('./scripts/update-ktc-values');
+      const updatedCount = await updateAllKTCValues();
+      res.json({
+        message: "KTC values updated successfully",
+        updatedCount
+      });
+    } catch (error) {
+      console.error("Error updating KTC values:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to update KTC values" 
+      });
+    }
+  });
+
   // Data Cache Management Routes
   app.get("/api/data-cache/status", async (req, res) => {
     try {
