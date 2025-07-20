@@ -52,50 +52,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Clear existing players and reload with active NFL players only
-      await storage.clearAllPlayers();
+      // Check if we already have player data to avoid expensive reload on every connection
+      const existingPlayers = await storage.getAllPlayers();
       
-      // Auto-fetch and store Sleeper player data
-      try {
-        const players = await sleeperService.getAllPlayers();
-        const playerArray = Object.values(players);
+      if (existingPlayers.length === 0) {
+        console.log("No player data found, loading from Sleeper API...");
         
-        // Store only active NFL players on rosters
-        const activeNFLPlayers = playerArray
-          .filter(p => 
-            p.player_id && 
-            p.position && 
-            ['QB', 'RB', 'WR', 'TE'].includes(p.position) &&
-            p.team && // Must have a team
-            p.team !== 'FA' && // Not free agent
-            p.status === 'Active' // Active status
-          )
-          .slice(0, 800); // Increased limit for active players
-        
-        for (const player of activeNFLPlayers) {
-          try {
-            await storage.upsertPlayer({
-              id: player.player_id,
-              first_name: player.first_name,
-              last_name: player.last_name,
-              position: player.position,
-              team: player.team,
-              age: player.age,
-              years_exp: player.years_exp,
-              height: player.height,
-              weight: player.weight,
-              status: player.status,
-              injury_status: player.injury_status
-            });
-          } catch (error) {
-            console.warn(`Failed to store player ${player.player_id}:`, error instanceof Error ? error.message : error);
+        // Auto-fetch and store Sleeper player data (only if database is empty)
+        try {
+          const players = await sleeperService.getAllPlayers();
+          const playerArray = Object.values(players);
+          
+          // Store only active NFL players on rosters
+          const activeNFLPlayers = playerArray
+            .filter(p => 
+              p.player_id && 
+              p.position && 
+              ['QB', 'RB', 'WR', 'TE'].includes(p.position) &&
+              p.team && // Must have a team
+              p.team !== 'FA' && // Not free agent
+              p.status === 'Active' // Active status
+            )
+            .slice(0, 800); // Increased limit for active players
+          
+          for (const player of activeNFLPlayers) {
+            try {
+              await storage.upsertPlayer({
+                id: player.player_id,
+                first_name: player.first_name,
+                last_name: player.last_name,
+                position: player.position,
+                team: player.team,
+                age: player.age,
+                years_exp: player.years_exp,
+                height: player.height,
+                weight: player.weight,
+                status: player.status,
+                injury_status: player.injury_status
+              });
+            } catch (error) {
+              console.warn(`Failed to store player ${player.player_id}:`, error instanceof Error ? error.message : error);
+            }
           }
+          
+          console.log(`Stored ${activeNFLPlayers.length} active NFL players from Sleeper API`);
+        } catch (error) {
+          console.warn("Failed to auto-load Sleeper players:", error);
+          // Don't fail the connection if player loading fails
         }
-        
-        console.log(`Stored ${activeNFLPlayers.length} active NFL players from Sleeper API`);
-      } catch (error) {
-        console.warn("Failed to auto-load Sleeper players:", error);
-        // Don't fail the connection if player loading fails
+      } else {
+        console.log(`Using existing player data (${existingPlayers.length} players)`);
       }
 
       // Save session for easy reconnection
