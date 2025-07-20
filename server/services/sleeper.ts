@@ -55,8 +55,16 @@ export interface SleeperDraftPick {
   roster_id: number;
   round: number;
   pick_no: number;
-  is_keeper: boolean;
-  metadata: Record<string, any>;
+  is_keeper: boolean | null;
+  metadata: Record<string, any> | null;
+}
+
+export interface SleeperTradedPick {
+  season: string;
+  round: number;
+  roster_id: number;
+  previous_owner_id: number;
+  owner_id: number;
 }
 
 export class SleeperService {
@@ -113,6 +121,10 @@ export class SleeperService {
 
   async getAllPlayers(): Promise<Record<string, SleeperPlayer>> {
     return this.makeRequest<Record<string, SleeperPlayer>>('/players/nfl');
+  }
+
+  async getTradedPicks(leagueId: string): Promise<SleeperTradedPick[]> {
+    return this.makeRequest<SleeperTradedPick[]>(`/league/${leagueId}/traded_picks`);
   }
 
   async getTrendingPlayers(type: 'add' | 'drop', lookbackHours: number = 24, limit: number = 25): Promise<any[]> {

@@ -168,34 +168,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userRosterId = userId ? Object.entries(draft.draft_order || {})
         .find(([rosterId, position]) => rosterId === userId)?.[0] : null;
       
-      // Calculate user's upcoming picks
+      // Get traded picks data to determine actual pick ownership
+      let tradedPicks = [];
+      try {
+        tradedPicks = await sleeperService.getTradedPicks(draft.league_id);
+      } catch (error) {
+        console.warn("Could not fetch traded picks, using original draft order");
+      }
+
+      // Calculate user's actual upcoming picks (including traded picks)
       const userPicks = [];
       if (draft.draft_order && userRosterId) {
-        const userDraftPosition = draft.draft_order[userRosterId];
+        const userRosterNumber = parseInt(userRosterId);
         
+        // Generate all remaining picks and check ownership
         for (let round = currentRound; round <= totalRounds; round++) {
-          let pickInCurrentRound;
-          
-          // Handle snake draft format
-          if (round % 2 === 1) {
-            // Odd rounds: normal order
-            pickInCurrentRound = userDraftPosition;
-          } else {
-            // Even rounds: reverse order (snake)
-            pickInCurrentRound = totalTeams - userDraftPosition + 1;
-          }
-          
-          const absolutePick = (round - 1) * totalTeams + pickInCurrentRound;
-          
-          // Only include future picks
-          if (absolutePick >= currentPickNumber) {
-            userPicks.push({
-              round,
-              pickInRound: pickInCurrentRound,
-              absolutePick,
-              isNext: absolutePick === currentPickNumber && userRosterId,
-              picksAway: absolutePick - currentPickNumber
-            });
+          for (let pick = 1; pick <= totalTeams; pick++) {
+            const absolutePick = (round - 1) * totalTeams + pick;
+            
+            // Skip already completed picks
+            if (absolutePick < currentPickNumber) continue;
+            
+            // Determine original owner for this pick position in snake format
+            let originalPosition;
+            if (round % 2 === 1) {
+              // Odd rounds: normal order (1, 2, 3...)
+              originalPosition = pick;
+            } else {
+              // Even rounds: reverse order (...3, 2, 1)
+              originalPosition = totalTeams - pick + 1;
+            }
+            
+            // Find original owner roster ID
+            const originalOwnerEntry = Object.entries(draft.draft_order).find(
+              ([rosterId, position]) => position === originalPosition
+            );
+            const originalOwnerRosterId = originalOwnerEntry ? parseInt(originalOwnerEntry[0]) : null;
+            
+            // Check if this pick was traded to the user
+            let currentOwner = originalOwnerRosterId;
+            const tradedPick = tradedPicks.find(tp => 
+              tp.season === draft.season && 
+              tp.round === round && 
+              tp.previous_owner_id === originalOwnerRosterId
+            );
+            
+            if (tradedPick) {
+              currentOwner = tradedPick.owner_id;
+            }
+            
+            // If user owns this pick, add it to their list
+            if (currentOwner === userRosterNumber) {
+              userPicks.push({
+                round,
+                pickInRound: pick,
+                absolutePick,
+                isNext: absolutePick === currentPickNumber,
+                picksAway: absolutePick - currentPickNumber,
+                isTraded: !!tradedPick
+              });
+            }
           }
         }
       }
@@ -209,6 +241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         userPicks: userPicks.slice(0, 5), // Next 5 user picks
         draftOrder: draft.draft_order,
+        tradedPicksCount: tradedPicks.length,
         settings: {
           rounds: totalRounds,
           teams: totalTeams,
