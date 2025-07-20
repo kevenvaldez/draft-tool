@@ -52,6 +52,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Auto-fetch and store Sleeper player data
+      try {
+        const players = await sleeperService.getAllPlayers();
+        const playerArray = Object.values(players);
+        
+        // Store top 500 players to avoid overwhelming the system
+        const topPlayers = playerArray
+          .filter(p => p.player_id && p.position && ['QB', 'RB', 'WR', 'TE'].includes(p.position))
+          .slice(0, 500);
+        
+        for (const player of topPlayers) {
+          try {
+            await storage.upsertPlayer({
+              id: player.player_id,
+              first_name: player.first_name,
+              last_name: player.last_name,
+              position: player.position,
+              team: player.team,
+              age: player.age,
+              years_exp: player.years_exp,
+              height: player.height,
+              weight: player.weight,
+              status: player.status,
+              injury_status: player.injury_status
+            });
+          } catch (error) {
+            console.warn(`Failed to store player ${player.player_id}:`, error instanceof Error ? error.message : error);
+          }
+        }
+        
+        console.log(`Stored ${topPlayers.length} players from Sleeper API`);
+      } catch (error) {
+        console.warn("Failed to auto-load Sleeper players:", error);
+        // Don't fail the connection if player loading fails
+      }
+
       res.json({
         success: true,
         league: validation.league,
@@ -90,6 +126,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching draft picks:", error);
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to fetch draft picks" 
+      });
+    }
+  });
+
+  // Get draft order and current pick information
+  app.get("/api/sleeper/draft/:draftId/order", async (req, res) => {
+    try {
+      const { draftId } = req.params;
+      const { userId } = req.query;
+      
+      const [draft, picks] = await Promise.all([
+        sleeperService.getDraft(draftId),
+        sleeperService.getDraftPicks(draftId)
+      ]);
+
+      // Calculate draft order and current pick
+      const totalRounds = draft.settings?.rounds || 15;
+      const totalTeams = Object.keys(draft.draft_order || {}).length || 12;
+      const totalPicks = totalRounds * totalTeams;
+      
+      // Find current pick number
+      const completedPicks = picks.filter(p => p.player_id).length;
+      const currentPickNumber = completedPicks + 1;
+      
+      // Calculate round and pick in round
+      const currentRound = Math.ceil(currentPickNumber / totalTeams);
+      const pickInRound = ((currentPickNumber - 1) % totalTeams) + 1;
+      
+      // Get user's roster ID
+      const userRosterId = userId ? Object.entries(draft.draft_order || {})
+        .find(([rosterId, position]) => rosterId === userId)?.[0] : null;
+      
+      // Calculate user's upcoming picks
+      const userPicks = [];
+      if (draft.draft_order && userRosterId) {
+        const userDraftPosition = draft.draft_order[userRosterId];
+        
+        for (let round = currentRound; round <= totalRounds; round++) {
+          let pickInCurrentRound;
+          
+          // Handle snake draft format
+          if (round % 2 === 1) {
+            // Odd rounds: normal order
+            pickInCurrentRound = userDraftPosition;
+          } else {
+            // Even rounds: reverse order (snake)
+            pickInCurrentRound = totalTeams - userDraftPosition + 1;
+          }
+          
+          const absolutePick = (round - 1) * totalTeams + pickInCurrentRound;
+          
+          // Only include future picks
+          if (absolutePick >= currentPickNumber) {
+            userPicks.push({
+              round,
+              pickInRound: pickInCurrentRound,
+              absolutePick,
+              isNext: absolutePick === currentPickNumber && userRosterId,
+              picksAway: absolutePick - currentPickNumber
+            });
+          }
+        }
+      }
+
+      res.json({
+        currentPick: {
+          round: currentRound,
+          pickInRound: pickInRound,
+          absolutePick: currentPickNumber,
+          totalPicks
+        },
+        userPicks: userPicks.slice(0, 5), // Next 5 user picks
+        draftOrder: draft.draft_order,
+        settings: {
+          rounds: totalRounds,
+          teams: totalTeams,
+          type: draft.type
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching draft order:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch draft order" 
       });
     }
   });

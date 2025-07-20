@@ -23,6 +23,28 @@ import {
 } from "lucide-react";
 import type { PlayerWithKTC, FilterState } from "@/lib/types";
 
+interface DraftOrderData {
+  currentPick: {
+    round: number;
+    pickInRound: number;
+    absolutePick: number;
+    totalPicks: number;
+  };
+  userPicks: Array<{
+    round: number;
+    pickInRound: number;
+    absolutePick: number;
+    isNext: boolean;
+    picksAway: number;
+  }>;
+  draftOrder: Record<string, number>;
+  settings: {
+    rounds: number;
+    teams: number;
+    type: string;
+  };
+}
+
 interface DraftBoardProps {
   players: PlayerWithKTC[];
   filters: FilterState;
@@ -33,6 +55,7 @@ interface DraftBoardProps {
   onToggleMockDraft: () => void;
   draftedPlayers: Set<string>;
   onDraftPlayer: (playerId: string) => void;
+  draftOrder?: DraftOrderData;
 }
 
 const POSITIONS = ['QB', 'RB', 'WR', 'TE'];
@@ -51,7 +74,8 @@ export function DraftBoard({
   mockDraftMode,
   onToggleMockDraft,
   draftedPlayers,
-  onDraftPlayer
+  onDraftPlayer,
+  draftOrder
 }: DraftBoardProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [displayCount, setDisplayCount] = useState(24);
@@ -157,7 +181,7 @@ export function DraftBoard({
             </CardContent>
           </Card>
 
-          {/* Mock Draft Controls */}
+          {/* Draft Order */}
           <Card className="mt-6">
             <CardContent className="p-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center">
@@ -165,22 +189,49 @@ export function DraftBoard({
                 Draft Order
               </h3>
               
-              <div className="space-y-2">
-                {[1, 2, 3, 4, 5].map(pick => (
-                  <div key={pick} className={`flex items-center justify-between p-2 rounded-lg ${
-                    pick === 2 ? 'bg-primary/20 border border-primary' : 'bg-muted'
-                  }`}>
-                    <span className={`text-sm font-medium ${pick === 2 ? 'text-primary' : ''}`}>
-                      1.{pick.toString().padStart(2, '0')}
-                    </span>
-                    <span className={`text-sm ${
-                      pick === 2 ? 'text-primary' : 'text-muted-foreground'
-                    }`}>
-                      {pick === 2 ? 'Your Turn' : `Team ${pick}`}
-                    </span>
+              {draftOrder ? (
+                <div className="space-y-3">
+                  {/* Current Pick */}
+                  <div className="bg-accent/20 border border-accent rounded-lg p-3">
+                    <div className="text-sm text-accent font-medium mb-1">Current Pick</div>
+                    <div className="text-lg font-bold">
+                      {draftOrder.currentPick.round}.{draftOrder.currentPick.pickInRound.toString().padStart(2, '0')}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Pick {draftOrder.currentPick.absolutePick} of {draftOrder.currentPick.totalPicks}
+                    </div>
                   </div>
-                ))}
-              </div>
+
+                  {/* User's Upcoming Picks */}
+                  {draftOrder.userPicks.length > 0 && (
+                    <div>
+                      <div className="text-sm text-muted-foreground mb-2">Your Upcoming Picks</div>
+                      <div className="space-y-2">
+                        {draftOrder.userPicks.slice(0, 3).map((pick, index) => (
+                          <div key={index} className={`flex items-center justify-between p-2 rounded-lg ${
+                            pick.isNext ? 'bg-primary/20 border border-primary' : 'bg-muted'
+                          }`}>
+                            <span className={`text-sm font-medium ${pick.isNext ? 'text-primary' : ''}`}>
+                              {pick.round}.{pick.pickInRound.toString().padStart(2, '0')}
+                            </span>
+                            <span className={`text-sm ${
+                              pick.isNext ? 'text-primary' : 'text-muted-foreground'
+                            }`}>
+                              {pick.isNext ? 'Your Turn' : `${pick.picksAway} pick${pick.picksAway !== 1 ? 's' : ''} away`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="bg-muted animate-pulse rounded-lg p-3 h-16"></div>
+                  <div className="bg-muted animate-pulse rounded-lg p-2 h-10"></div>
+                  <div className="bg-muted animate-pulse rounded-lg p-2 h-10"></div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -317,36 +368,79 @@ export function DraftBoard({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-muted rounded-lg p-4">
               <h4 className="font-medium text-secondary mb-2">Draft Progress</h4>
-              <div className="flex items-center space-x-3 mb-2">
-                <div className="flex-1 bg-border rounded-full h-2">
-                  <div 
-                    className="bg-secondary h-2 rounded-full transition-all duration-300" 
-                    style={{ width: `${(draftedPlayers.size / 144) * 100}%` }}
-                  />
-                </div>
-                <span className="text-sm font-medium">{draftedPlayers.size}/144</span>
+              {draftOrder ? (
+                <>
+                  <div className="flex items-center space-x-3 mb-2">
+                    <div className="flex-1 bg-border rounded-full h-2">
+                      <div 
+                        className="bg-secondary h-2 rounded-full transition-all duration-300" 
+                        style={{ width: `${(draftOrder.currentPick.absolutePick / draftOrder.currentPick.totalPicks) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium">
+                      {draftOrder.currentPick.absolutePick - 1}/{draftOrder.currentPick.totalPicks}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Round {draftOrder.currentPick.round}, Pick {draftOrder.currentPick.pickInRound}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center space-x-3 mb-2">
+                    <div className="flex-1 bg-border rounded-full h-2">
+                      <div 
+                        className="bg-secondary h-2 rounded-full transition-all duration-300" 
+                        style={{ width: `${(draftedPlayers.size / 144) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium">{draftedPlayers.size}/144</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Round 1, Pick {draftedPlayers.size + 1}
+                  </p>
+                </>
+              )}
+            </div>
+            
+            <div className="bg-muted rounded-lg p-4">
+              <h4 className="font-medium text-accent mb-2">Draft Status</h4>
+              <div className="flex items-center space-x-2 mb-2">
+                <Clock className="h-4 w-4 text-accent" />
+                <span className="text-lg font-mono">
+                  {draftOrder?.settings.type || 'Dynasty'}
+                </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Round 1, Pick {draftedPlayers.size + 1}
+                {draftOrder ? `${draftOrder.settings.teams} teams, ${draftOrder.settings.rounds} rounds` : 'Loading draft info...'}
               </p>
             </div>
             
             <div className="bg-muted rounded-lg p-4">
-              <h4 className="font-medium text-accent mb-2">Time Remaining</h4>
-              <div className="flex items-center space-x-2 mb-2">
-                <Clock className="h-4 w-4 text-accent" />
-                <span className="text-lg font-mono">01:23</span>
-              </div>
-              <p className="text-xs text-muted-foreground">Until next pick</p>
-            </div>
-            
-            <div className="bg-muted rounded-lg p-4">
               <h4 className="font-medium text-primary mb-2">Your Next Pick</h4>
-              <div className="flex items-center space-x-2 mb-2">
-                <Target className="h-4 w-4 text-primary" />
-                <span className="text-lg font-semibold">1.15</span>
-              </div>
-              <p className="text-xs text-muted-foreground">2 picks away</p>
+              {draftOrder?.userPicks.length > 0 ? (
+                <>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Target className="h-4 w-4 text-primary" />
+                    <span className="text-lg font-semibold">
+                      {draftOrder.userPicks[0].round}.{draftOrder.userPicks[0].pickInRound.toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {draftOrder.userPicks[0].picksAway === 0 
+                      ? 'Your turn now!'
+                      : `${draftOrder.userPicks[0].picksAway} pick${draftOrder.userPicks[0].picksAway !== 1 ? 's' : ''} away`}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Target className="h-4 w-4 text-primary" />
+                    <span className="text-lg font-semibold">--</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Loading...</p>
+                </>
+              )}
             </div>
           </div>
         </CardContent>

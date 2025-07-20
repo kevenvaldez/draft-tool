@@ -28,7 +28,18 @@ export default function Home() {
 
   // Fetch players with KTC values
   const { data: players = [], isLoading: playersLoading } = useQuery({
-    queryKey: ["/api/players", filters],
+    queryKey: ["/api/players"],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filters.position) params.append('position', filters.position);
+      if (filters.team) params.append('team', filters.team);
+      if (filters.search) params.append('search', filters.search);
+      if (filters.availableOnly) params.append('availableOnly', 'true');
+      
+      const response = await fetch(`/api/players?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch players');
+      return response.json();
+    },
     enabled: !!connection,
     refetchInterval: 30000, // Refresh every 30 seconds
   });
@@ -61,6 +72,18 @@ export default function Home() {
         variant: "destructive",
       });
     },
+  });
+
+  // Get draft order information
+  const { data: draftOrder } = useQuery({
+    queryKey: ["/api/sleeper/draft", connection?.draft?.draft_id, "order"],
+    queryFn: async () => {
+      const response = await fetch(`/api/sleeper/draft/${connection?.draft?.draft_id}/order?userId=${connection?.user?.user_id}`);
+      if (!response.ok) throw new Error('Failed to fetch draft order');
+      return response.json();
+    },
+    enabled: !!connection?.draft?.draft_id,
+    refetchInterval: 30000,
   });
 
   // Get draft recommendations
@@ -221,6 +244,7 @@ export default function Home() {
             onToggleMockDraft={() => setMockDraftMode(!mockDraftMode)}
             draftedPlayers={draftedPlayers}
             onDraftPlayer={handleDraftPlayer}
+            draftOrder={draftOrder}
           />
         )}
       </div>

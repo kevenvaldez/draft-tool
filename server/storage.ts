@@ -25,6 +25,7 @@ export interface IStorage {
   searchPlayers(query: string): Promise<Player[]>;
   createPlayer(player: InsertPlayer): Promise<Player>;
   updatePlayer(id: string, updates: Partial<InsertPlayer>): Promise<Player | undefined>;
+  upsertPlayer(player: InsertPlayer): Promise<Player>;
   bulkUpdatePlayers(players: Player[]): Promise<void>;
 
   // Draft pick operations
@@ -74,6 +75,7 @@ export class MemStorage implements IStorage {
   async createLeague(insertLeague: InsertLeague): Promise<League> {
     const league: League = {
       ...insertLeague,
+      settings: insertLeague.settings ?? null,
       created_at: new Date(),
     };
     this.leagues.set(league.id, league);
@@ -100,6 +102,8 @@ export class MemStorage implements IStorage {
   async createDraft(insertDraft: InsertDraft): Promise<Draft> {
     const draft: Draft = {
       ...insertDraft,
+      settings: insertDraft.settings ?? null,
+      start_time: insertDraft.start_time ?? null,
       created_at: new Date(),
     };
     this.drafts.set(draft.id, draft);
@@ -142,12 +146,38 @@ export class MemStorage implements IStorage {
   }
 
   async createPlayer(insertPlayer: InsertPlayer): Promise<Player> {
+    // Check if player already exists
+    if (this.players.has(insertPlayer.id)) {
+      throw new Error(`Player with id ${insertPlayer.id} already exists`);
+    }
+    
     const player: Player = {
       ...insertPlayer,
+      first_name: insertPlayer.first_name ?? null,
+      last_name: insertPlayer.last_name ?? null,
+      position: insertPlayer.position ?? null,
+      team: insertPlayer.team ?? null,
+      age: insertPlayer.age ?? null,
+      years_exp: insertPlayer.years_exp ?? null,
+      height: insertPlayer.height ?? null,
+      weight: insertPlayer.weight ?? null,
+      status: insertPlayer.status ?? null,
+      injury_status: insertPlayer.injury_status ?? null,
+      ktc_value: insertPlayer.ktc_value ?? null,
+      ktc_rank: insertPlayer.ktc_rank ?? null,
       updated_at: new Date(),
     };
     this.players.set(player.id, player);
     return player;
+  }
+
+  async upsertPlayer(insertPlayer: InsertPlayer): Promise<Player> {
+    const existing = this.players.get(insertPlayer.id);
+    if (existing) {
+      const updated = await this.updatePlayer(insertPlayer.id, insertPlayer);
+      return updated || existing;
+    }
+    return this.createPlayer(insertPlayer);
   }
 
   async updatePlayer(id: string, updates: Partial<InsertPlayer>): Promise<Player | undefined> {
@@ -180,6 +210,11 @@ export class MemStorage implements IStorage {
     const pick: DraftPick = {
       ...insertPick,
       id,
+      player_id: insertPick.player_id ?? null,
+      picked_by: insertPick.picked_by ?? null,
+      roster_id: insertPick.roster_id ?? null,
+      is_keeper: insertPick.is_keeper ?? null,
+      metadata: insertPick.metadata ?? null,
       picked_at: insertPick.player_id ? new Date() : null,
     };
     this.draftPicks.set(id, pick);
@@ -210,6 +245,7 @@ export class MemStorage implements IStorage {
   async createMockDraft(insertMockDraft: InsertMockDraft): Promise<MockDraft> {
     const mockDraft: MockDraft = {
       ...insertMockDraft,
+      current_pick: insertMockDraft.current_pick ?? null,
       created_at: new Date(),
       updated_at: new Date(),
     };
@@ -239,6 +275,7 @@ export class MemStorage implements IStorage {
     const item: Watchlist = {
       ...insertWatchlist,
       id,
+      notes: insertWatchlist.notes ?? null,
       created_at: new Date(),
     };
     this.watchlists.set(id, item);
