@@ -55,6 +55,8 @@ interface DraftBoardProps {
   onToggleMockDraft: () => void;
   draftedPlayers: Set<string>;
   onDraftPlayer: (playerId: string) => void;
+  onResetMockDraft: () => void;
+  onSaveMockDraft: () => Promise<void>;
   draftOrder?: DraftOrderData;
 }
 
@@ -75,6 +77,8 @@ export function DraftBoard({
   onToggleMockDraft,
   draftedPlayers,
   onDraftPlayer,
+  onResetMockDraft,
+  onSaveMockDraft,
   draftOrder
 }: DraftBoardProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -343,16 +347,26 @@ export function DraftBoard({
               Mock Draft Controls
             </h3>
             <div className="flex items-center space-x-3">
-              <Button variant="outline" size="sm">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={onResetMockDraft}
+                disabled={!mockDraftMode || draftedPlayers.size === 0}
+              >
                 <RotateCcw className="h-4 w-4 mr-2" />
                 Reset
               </Button>
               <Button 
                 variant={mockDraftMode ? "destructive" : "default"} 
                 size="sm"
-                onClick={onToggleMockDraft}
+                onClick={async () => {
+                  if (mockDraftMode && draftedPlayers.size > 0) {
+                    await onSaveMockDraft();
+                  }
+                  onToggleMockDraft();
+                }}
               >
-                {mockDraftMode ? 'Exit Mock' : 'Start Mock'}
+                {mockDraftMode ? 'End Mock' : 'Start Mock'}
               </Button>
               <Button variant="outline" size="sm">
                 <Bot className="h-4 w-4 mr-2" />

@@ -24,6 +24,7 @@ export default function Home() {
   });
   const [mockDraftMode, setMockDraftMode] = useState(false);
   const [draftedPlayers, setDraftedPlayers] = useState<Set<string>>(new Set());
+  const [currentMockDraftId, setCurrentMockDraftId] = useState<string | null>(null);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -109,6 +110,58 @@ export default function Home() {
       toast({
         title: "Player drafted!",
         description: "Player added to mock draft",
+      });
+    }
+  };
+
+  const handleResetMockDraft = () => {
+    setDraftedPlayers(new Set());
+    setCurrentMockDraftId(null);
+    toast({
+      title: "Mock Draft Reset",
+      description: "All drafted players have been cleared",
+    });
+  };
+
+  const handleSaveMockDraft = async () => {
+    if (!connection || draftedPlayers.size === 0) return;
+
+    try {
+      const mockDraftData = {
+        id: currentMockDraftId || `mock_${Date.now()}`,
+        user_id: connection.userId,
+        name: `Mock Draft - ${new Date().toLocaleDateString()}`,
+        league_settings: JSON.stringify({
+          format: 'superflex',
+          rounds: 15,
+          teams: 12
+        }),
+        draft_order: JSON.stringify(Array.from({length: 12}, (_, i) => i + 1)),
+        picks: JSON.stringify(Array.from(draftedPlayers)),
+        current_pick: draftedPlayers.size + 1,
+        is_completed: true,
+        total_rounds: 15,
+        total_teams: 12,
+        notes: `Mock draft with ${draftedPlayers.size} picks`
+      };
+
+      const response = await apiRequest("POST", "/api/mock-drafts", mockDraftData);
+      
+      if (response.ok) {
+        toast({
+          title: "Mock Draft Saved",
+          description: `Your mock draft session has been saved with ${draftedPlayers.size} picks`,
+        });
+        
+        // Invalidate mock drafts cache to refresh history
+        queryClient.invalidateQueries({ queryKey: ["/api/mock-drafts"] });
+      }
+    } catch (error) {
+      console.error('Error saving mock draft:', error);
+      toast({
+        title: "Save Failed",
+        description: "Unable to save mock draft session",
+        variant: "destructive"
       });
     }
   };
@@ -257,6 +310,8 @@ export default function Home() {
             onToggleMockDraft={() => setMockDraftMode(!mockDraftMode)}
             draftedPlayers={draftedPlayers}
             onDraftPlayer={handleDraftPlayer}
+            onResetMockDraft={handleResetMockDraft}
+            onSaveMockDraft={handleSaveMockDraft}
             draftOrder={draftOrder}
           />
         )}
