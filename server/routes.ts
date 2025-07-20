@@ -560,16 +560,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { position, team, search, available } = req.query;
       let players = await storage.getAllPlayers();
 
-      // Filter for active NFL players with KTC values (our cached data)
+      // Filter for dynasty players with KTC values (our accurate scraped data)
       players = players.filter(p => 
-        p.team && 
-        p.team !== 'FA' && 
-        p.team !== null && 
-        p.status === 'Active' &&
         p.position &&
         ['QB', 'RB', 'WR', 'TE'].includes(p.position) &&
-        p.ktc_value && // Only include players with KTC values (our live data)
-        p.ktc_value > 0
+        p.ktc_value && 
+        p.ktc_value > 0 &&
+        p.first_name && 
+        p.last_name
       );
 
       // Apply additional filters
