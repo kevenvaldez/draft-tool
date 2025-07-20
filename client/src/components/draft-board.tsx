@@ -362,6 +362,8 @@ export function DraftBoard({
                 onClick={async () => {
                   if (mockDraftMode && draftedPlayers.size > 0) {
                     await onSaveMockDraft();
+                    // Reset drafted players after saving
+                    onResetMockDraft();
                   }
                   onToggleMockDraft();
                 }}

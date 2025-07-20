@@ -307,7 +307,18 @@ export default function Home() {
             onPlayerSelect={handlePlayerSelect}
             isLoading={isLoading}
             mockDraftMode={mockDraftMode}
-            onToggleMockDraft={() => setMockDraftMode(!mockDraftMode)}
+            onToggleMockDraft={() => {
+              if (mockDraftMode) {
+                // When exiting mock draft mode, reset drafted players
+                setDraftedPlayers(new Set());
+                setCurrentMockDraftId(null);
+                toast({
+                  title: "Mock Draft Ended",
+                  description: "All players are now available again",
+                });
+              }
+              setMockDraftMode(!mockDraftMode);
+            }}
             draftedPlayers={draftedPlayers}
             onDraftPlayer={handleDraftPlayer}
             onResetMockDraft={handleResetMockDraft}
