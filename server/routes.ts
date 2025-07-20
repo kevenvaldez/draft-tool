@@ -98,6 +98,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Don't fail the connection if player loading fails
       }
 
+      // Save session for easy reconnection
+      if (validation.league && validation.draft) {
+        await storage.createSession({
+          league_id: validation.league.league_id,
+          draft_id: validation.draft.draft_id,
+          user_id: userId,
+          league_name: validation.league.name
+        });
+      }
+
       res.json({
         success: true,
         league: validation.league,
@@ -169,7 +179,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .find(([rosterId, position]) => rosterId === userId)?.[0] : null;
       
       // Get traded picks data to determine actual pick ownership
-      let tradedPicks = [];
+      let tradedPicks: any[] = [];
       try {
         tradedPicks = await sleeperService.getTradedPicks(draft.league_id);
       } catch (error) {
@@ -560,6 +570,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error generating recommendations:", error);
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to generate recommendations" 
+      });
+    }
+  });
+
+  // Session Management Routes
+  app.get("/api/sessions", async (req, res) => {
+    try {
+      const sessions = await storage.getSessions();
+      res.json(sessions);
+    } catch (error) {
+      console.error("Error fetching sessions:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch sessions" 
+      });
+    }
+  });
+
+  app.delete("/api/sessions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteSession(id);
+      if (deleted) {
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ message: "Session not found" });
+      }
+    } catch (error) {
+      console.error("Error deleting session:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to delete session" 
       });
     }
   });

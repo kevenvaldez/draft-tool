@@ -1,8 +1,9 @@
 import { 
-  leagues, drafts, players, draft_picks, mock_drafts, watchlists,
+  leagues, drafts, players, draft_picks, mock_drafts, watchlists, sessions,
   type League, type InsertLeague, type Draft, type InsertDraft,
   type Player, type InsertPlayer, type DraftPick, type InsertDraftPick,
-  type MockDraft, type InsertMockDraft, type Watchlist, type InsertWatchlist
+  type MockDraft, type InsertMockDraft, type Watchlist, type InsertWatchlist,
+  type Session, type InsertSession
 } from "@shared/schema";
 
 export interface IStorage {
@@ -46,6 +47,12 @@ export interface IStorage {
   getWatchlist(userId: string): Promise<Watchlist[]>;
   addToWatchlist(item: InsertWatchlist): Promise<Watchlist>;
   removeFromWatchlist(id: number): Promise<boolean>;
+
+  // Session operations
+  getSessions(): Promise<Session[]>;
+  createSession(session: InsertSession): Promise<Session>;
+  updateSessionLastUsed(id: number): Promise<Session | undefined>;
+  deleteSession(id: number): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -55,8 +62,10 @@ export class MemStorage implements IStorage {
   private draftPicks: Map<number, DraftPick>;
   private mockDrafts: Map<string, MockDraft>;
   private watchlists: Map<number, Watchlist>;
+  private sessions: Map<number, Session>;
   private draftPickId: number;
   private watchlistId: number;
+  private sessionId: number;
 
   constructor() {
     this.leagues = new Map();
@@ -65,8 +74,10 @@ export class MemStorage implements IStorage {
     this.draftPicks = new Map();
     this.mockDrafts = new Map();
     this.watchlists = new Map();
+    this.sessions = new Map();
     this.draftPickId = 1;
     this.watchlistId = 1;
+    this.sessionId = 1;
   }
 
   async getLeague(id: string): Promise<League | undefined> {
@@ -289,6 +300,52 @@ export class MemStorage implements IStorage {
 
   async removeFromWatchlist(id: number): Promise<boolean> {
     return this.watchlists.delete(id);
+  }
+
+  // Session operations
+  async getSessions(): Promise<Session[]> {
+    return Array.from(this.sessions.values()).sort((a, b) => 
+      new Date(b.last_used).getTime() - new Date(a.last_used).getTime()
+    );
+  }
+
+  async createSession(insertSession: InsertSession): Promise<Session> {
+    // Check if session already exists for this combination
+    const existingSession = Array.from(this.sessions.values()).find(s => 
+      s.league_id === insertSession.league_id && 
+      s.draft_id === insertSession.draft_id && 
+      s.user_id === insertSession.user_id
+    );
+
+    if (existingSession) {
+      // Update last_used for existing session
+      existingSession.last_used = new Date();
+      this.sessions.set(existingSession.id, existingSession);
+      return existingSession;
+    }
+
+    const id = this.sessionId++;
+    const session: Session = {
+      ...insertSession,
+      id,
+      last_used: new Date(),
+      created_at: new Date(),
+    };
+    this.sessions.set(id, session);
+    return session;
+  }
+
+  async updateSessionLastUsed(id: number): Promise<Session | undefined> {
+    const existing = this.sessions.get(id);
+    if (!existing) return undefined;
+    
+    const updated = { ...existing, last_used: new Date() };
+    this.sessions.set(id, updated);
+    return updated;
+  }
+
+  async deleteSession(id: number): Promise<boolean> {
+    return this.sessions.delete(id);
   }
 }
 

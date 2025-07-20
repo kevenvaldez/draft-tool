@@ -74,6 +74,16 @@ export const watchlists = pgTable("watchlists", {
   created_at: timestamp("created_at").defaultNow(),
 });
 
+export const sessions = pgTable("sessions", {
+  id: serial("id").primaryKey(),
+  league_id: text("league_id").notNull(),
+  draft_id: text("draft_id").notNull(),
+  user_id: text("user_id").notNull(),
+  league_name: text("league_name").notNull(),
+  last_used: timestamp("last_used").defaultNow().notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const insertLeagueSchema = createInsertSchema(leagues).omit({
   created_at: true,
 });
@@ -101,6 +111,12 @@ export const insertWatchlistSchema = createInsertSchema(watchlists).omit({
   created_at: true,
 });
 
+export const insertSessionSchema = createInsertSchema(sessions).omit({
+  id: true,
+  created_at: true,
+  last_used: true,
+});
+
 export type League = typeof leagues.$inferSelect;
 export type InsertLeague = z.infer<typeof insertLeagueSchema>;
 export type Draft = typeof drafts.$inferSelect;
@@ -113,3 +129,5 @@ export type MockDraft = typeof mock_drafts.$inferSelect;
 export type InsertMockDraft = z.infer<typeof insertMockDraftSchema>;
 export type Watchlist = typeof watchlists.$inferSelect;
 export type InsertWatchlist = z.infer<typeof insertWatchlistSchema>;
+export type Session = typeof sessions.$inferSelect;
+export type InsertSession = z.infer<typeof insertSessionSchema>;
