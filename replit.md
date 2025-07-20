@@ -36,6 +36,9 @@ Preferred communication style: Simple, everyday language.
 - ✓ **Eliminated all data parsing issues** - no more "nullY" or incorrect player names
 - ✓ **Optimized loading performance** - removed slow KTC enrichment calls, now uses cached data only
 - ✓ **Fixed "nullY" display bug** - proper null checks for years_exp field in player cards
+- ✓ **Added positional ranking support** - Players now show both position-specific ranks (QB1, WR1) and overall KTC ranks
+- ✓ **Fixed mock draft pick saving** - Individual picks are now properly recorded in database with round/position details
+- ✓ **Enhanced mock draft workflow** - Start/end functionality creates and manages draft sessions correctly
 
 ## System Architecture
 

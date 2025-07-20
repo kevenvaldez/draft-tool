@@ -12,6 +12,7 @@ export interface PlayerWithKTC {
   injury_status?: string;
   ktc_value?: number;
   ktc_rank?: number;
+  position_rank?: number;
   updated_at?: Date;
 }
 

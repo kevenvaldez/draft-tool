@@ -85,11 +85,23 @@ export function PlayerCard({
           </div>
           
           {(player.position_rank || player.ktc_rank) && (
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Rank:</span>
-              <span className="text-sm font-semibold">
-                {player.position_rank ? `${player.position}${player.position_rank}` : `#${player.ktc_rank} overall`}
-              </span>
+            <div className="space-y-1">
+              {player.position_rank && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Position:</span>
+                  <Badge variant="secondary" className="text-xs font-semibold">
+                    {player.position}{player.position_rank}
+                  </Badge>
+                </div>
+              )}
+              {player.ktc_rank && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Overall:</span>
+                  <span className="text-sm font-semibold">
+                    #{player.ktc_rank}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
