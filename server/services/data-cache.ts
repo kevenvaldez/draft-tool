@@ -99,42 +99,39 @@ export class DataCacheService {
       let upsertCount = 0;
       for (const player of activeNFLPlayers) {
         try {
-          // Check if player exists
-          const [existingPlayer] = await db.select().from(players).where(eq(players.id, player.player_id));
-          
-          if (existingPlayer) {
-            // Update existing player
+          // Use simpler approach - just try insert and catch conflict
+          try {
+            await db.insert(players).values({
+              id: player.player_id,
+              first_name: player.first_name || null,
+              last_name: player.last_name || null,
+              position: player.position || null,
+              team: player.team || null,
+              age: player.age || null,
+              years_exp: player.years_exp || null,
+              height: player.height || null,
+              weight: player.weight || null,
+              status: player.status || null,
+              injury_status: player.injury_status || null,
+              updated_at: new Date()
+            });
+          } catch (insertError) {
+            // If insert fails due to conflict, try update
             await db.update(players)
               .set({
-                first_name: player.first_name,
-                last_name: player.last_name,
-                position: player.position,
-                team: player.team,
-                age: player.age,
-                years_exp: player.years_exp,
-                height: player.height,
-                weight: player.weight,
-                status: player.status,
-                injury_status: player.injury_status,
+                first_name: player.first_name || null,
+                last_name: player.last_name || null,
+                position: player.position || null,
+                team: player.team || null,
+                age: player.age || null,
+                years_exp: player.years_exp || null,
+                height: player.height || null,
+                weight: player.weight || null,
+                status: player.status || null,
+                injury_status: player.injury_status || null,
                 updated_at: new Date()
               })
               .where(eq(players.id, player.player_id));
-          } else {
-            // Insert new player
-            await db.insert(players).values({
-              id: player.player_id,
-              first_name: player.first_name,
-              last_name: player.last_name,
-              position: player.position,
-              team: player.team,
-              age: player.age,
-              years_exp: player.years_exp,
-              height: player.height,
-              weight: player.weight,
-              status: player.status,
-              injury_status: player.injury_status,
-              updated_at: new Date()
-            });
           }
           upsertCount++;
         } catch (error) {

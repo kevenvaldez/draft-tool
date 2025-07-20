@@ -1,9 +1,10 @@
 import { 
-  leagues, drafts, players, draft_picks, mock_drafts, watchlists, sessions,
+  leagues, drafts, players, draft_picks, mock_drafts, mock_draft_picks, watchlists, sessions,
   type League, type InsertLeague, type Draft, type InsertDraft,
   type Player, type InsertPlayer, type DraftPick, type InsertDraftPick,
-  type MockDraft, type InsertMockDraft, type Watchlist, type InsertWatchlist,
-  type Session, type InsertSession, type DataCache, type InsertDataCache
+  type MockDraft, type InsertMockDraft, type MockDraftPick, type InsertMockDraftPick,
+  type Watchlist, type InsertWatchlist, type Session, type InsertSession, 
+  type DataCache, type InsertDataCache
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql } from "drizzle-orm";
@@ -48,6 +49,11 @@ export interface IStorage {
   updateMockDraft(id: string, updates: Partial<InsertMockDraft>): Promise<MockDraft | undefined>;
   deleteMockDraft(id: string): Promise<boolean>;
 
+  // Mock draft pick operations
+  getMockDraftPicks(mockDraftId: string): Promise<MockDraftPick[]>;
+  addMockDraftPick(pick: InsertMockDraftPick): Promise<MockDraftPick>;
+  getPicksBySlot(round: number, roundPick: number): Promise<MockDraftPick[]>;
+
   // Watchlist operations
   getWatchlist(userId: string): Promise<Watchlist[]>;
   addToWatchlist(item: InsertWatchlist): Promise<Watchlist>;
@@ -71,9 +77,11 @@ export class MemStorage implements IStorage {
   private players: Map<string, Player>;
   private draftPicks: Map<number, DraftPick>;
   private mockDrafts: Map<string, MockDraft>;
+  private mockDraftPicks: Map<number, MockDraftPick>;
   private watchlists: Map<number, Watchlist>;
   private sessions: Map<number, Session>;
   private draftPickId: number;
+  private mockDraftPickId: number;
   private watchlistId: number;
   private sessionId: number;
 
@@ -83,9 +91,11 @@ export class MemStorage implements IStorage {
     this.players = new Map();
     this.draftPicks = new Map();
     this.mockDrafts = new Map();
+    this.mockDraftPicks = new Map();
     this.watchlists = new Map();
     this.sessions = new Map();
     this.draftPickId = 1;
+    this.mockDraftPickId = 1;
     this.watchlistId = 1;
     this.sessionId = 1;
   }
@@ -294,6 +304,10 @@ export class MemStorage implements IStorage {
     const mockDraft: MockDraft = {
       ...insertMockDraft,
       current_pick: insertMockDraft.current_pick ?? null,
+      is_completed: insertMockDraft.is_completed ?? false,
+      total_rounds: insertMockDraft.total_rounds ?? 15,
+      total_teams: insertMockDraft.total_teams ?? 12,
+      notes: insertMockDraft.notes ?? null,
       created_at: new Date(),
       updated_at: new Date(),
     };
@@ -378,6 +392,33 @@ export class MemStorage implements IStorage {
 
   async deleteSession(id: number): Promise<boolean> {
     return this.sessions.delete(id);
+  }
+
+  // Mock draft pick operations (memory-based)
+  async getMockDraftPicks(mockDraftId: string): Promise<MockDraftPick[]> {
+    return Array.from(this.mockDraftPicks.values()).filter(pick => pick.mock_draft_id === mockDraftId);
+  }
+
+  async addMockDraftPick(insertPick: InsertMockDraftPick): Promise<MockDraftPick> {
+    const id = this.mockDraftPickId++;
+    const pick: MockDraftPick = {
+      ...insertPick,
+      id,
+      player_id: insertPick.player_id ?? null,
+      player_name: insertPick.player_name ?? null,
+      player_position: insertPick.player_position ?? null,
+      player_team: insertPick.player_team ?? null,
+      is_user_pick: insertPick.is_user_pick ?? false,
+      picked_at: new Date(),
+    };
+    this.mockDraftPicks.set(id, pick);
+    return pick;
+  }
+
+  async getPicksBySlot(round: number, roundPick: number): Promise<MockDraftPick[]> {
+    return Array.from(this.mockDraftPicks.values()).filter(pick => 
+      pick.round === round && pick.round_pick === roundPick
+    );
   }
 
   // Data cache operations (memory-based fallback)
@@ -675,6 +716,23 @@ export class DatabaseStorage implements IStorage {
 
   async getAllDataCaches(): Promise<DataCache[]> {
     return await db.select().from(data_cache).orderBy(desc(data_cache.last_updated));
+  }
+
+  // Mock draft pick operations
+  async getMockDraftPicks(mockDraftId: string): Promise<MockDraftPick[]> {
+    return await db.select().from(mock_draft_picks)
+      .where(eq(mock_draft_picks.mock_draft_id, mockDraftId))
+      .orderBy(mock_draft_picks.pick);
+  }
+
+  async addMockDraftPick(insertPick: InsertMockDraftPick): Promise<MockDraftPick> {
+    const [pick] = await db.insert(mock_draft_picks).values(insertPick).returning();
+    return pick;
+  }
+
+  async getPicksBySlot(round: number, roundPick: number): Promise<MockDraftPick[]> {
+    return await db.select().from(mock_draft_picks)
+      .where(sql`${mock_draft_picks.round} = ${round} AND ${mock_draft_picks.round_pick} = ${roundPick}`);
   }
 }
 

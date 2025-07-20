@@ -58,12 +58,33 @@ export const draft_picks = pgTable("draft_picks", {
 export const mock_drafts = pgTable("mock_drafts", {
   id: text("id").primaryKey(),
   user_id: text("user_id").notNull(),
+  name: text("name").notNull(), // User-friendly name for the mock draft
   league_settings: text("league_settings").notNull(),
   draft_order: text("draft_order").notNull(),
   picks: text("picks").notNull(),
   current_pick: integer("current_pick").default(1),
+  is_completed: boolean("is_completed").default(false),
+  total_rounds: integer("total_rounds").default(15),
+  total_teams: integer("total_teams").default(12),
+  notes: text("notes"), // User notes about the mock draft
   created_at: timestamp("created_at").defaultNow(),
   updated_at: timestamp("updated_at").defaultNow(),
+});
+
+// Track individual picks in mock drafts for better analysis
+export const mock_draft_picks = pgTable("mock_draft_picks", {
+  id: serial("id").primaryKey(),
+  mock_draft_id: text("mock_draft_id").notNull().references(() => mock_drafts.id, { onDelete: 'cascade' }),
+  round: integer("round").notNull(),
+  pick: integer("pick").notNull(), // Overall pick number
+  round_pick: integer("round_pick").notNull(), // Pick within the round
+  team_id: text("team_id").notNull(),
+  player_id: text("player_id"),
+  player_name: text("player_name"),
+  player_position: text("player_position"),
+  player_team: text("player_team"),
+  picked_at: timestamp("picked_at").defaultNow(),
+  is_user_pick: boolean("is_user_pick").default(false),
 });
 
 export const watchlists = pgTable("watchlists", {
@@ -116,6 +137,11 @@ export const insertMockDraftSchema = createInsertSchema(mock_drafts).omit({
   updated_at: true,
 });
 
+export const insertMockDraftPickSchema = createInsertSchema(mock_draft_picks).omit({
+  id: true,
+  picked_at: true,
+});
+
 export const insertWatchlistSchema = createInsertSchema(watchlists).omit({
   id: true,
   created_at: true,
@@ -143,6 +169,8 @@ export type DraftPick = typeof draft_picks.$inferSelect;
 export type InsertDraftPick = z.infer<typeof insertDraftPickSchema>;
 export type MockDraft = typeof mock_drafts.$inferSelect;
 export type InsertMockDraft = z.infer<typeof insertMockDraftSchema>;
+export type MockDraftPick = typeof mock_draft_picks.$inferSelect;
+export type InsertMockDraftPick = z.infer<typeof insertMockDraftPickSchema>;
 export type Watchlist = typeof watchlists.$inferSelect;
 export type InsertWatchlist = z.infer<typeof insertWatchlistSchema>;
 export type Session = typeof sessions.$inferSelect;

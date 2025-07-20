@@ -3,12 +3,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ConnectionPanel } from "@/components/connection-panel";
 import { DraftBoard } from "@/components/draft-board";
 import { PlayerModal } from "@/components/player-modal";
+import { MockDraftHistory } from "@/components/mock-draft-history";
+import { DraftSlotTracker } from "@/components/draft-slot-tracker";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Volleyball, Settings, Activity, Zap } from "lucide-react";
+import { Volleyball, Settings, Activity, Zap, Trophy, BarChart3, Users, Clock, TrendingUp } from "lucide-react";
 import type { DraftConnection, PlayerWithKTC, FilterState } from "@/lib/types";
 
 export default function Home() {
@@ -231,6 +233,17 @@ export default function Home() {
             </Card>
           </div>
         </div>
+
+        {/* Analytics Panel */}
+        {connection && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+            <MockDraftHistory userId={connection.userId} />
+            <DraftSlotTracker 
+              totalRounds={15} 
+              totalTeams={12} 
+            />
+          </div>
+        )}
 
         {/* Draft Board */}
         {connection && (

@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { sleeperService } from "./services/sleeper";
 import { ktcService } from "./services/ktc";
-import { insertLeagueSchema, insertDraftSchema, insertPlayerSchema, insertMockDraftSchema, insertWatchlistSchema } from "@shared/schema";
+import { insertLeagueSchema, insertDraftSchema, insertPlayerSchema, insertMockDraftSchema, insertMockDraftPickSchema, insertWatchlistSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -385,6 +385,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("KTC data refresh error:", error);
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to refresh KTC data" 
+      });
+    }
+  });
+
+  // Mock Draft Management Routes
+  app.get("/api/mock-drafts/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const mockDrafts = await storage.getMockDraftsByUser(userId);
+      res.json(mockDrafts);
+    } catch (error) {
+      console.error("Error fetching mock drafts:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch mock drafts" 
+      });
+    }
+  });
+
+  app.get("/api/mock-drafts/:mockDraftId/picks", async (req, res) => {
+    try {
+      const { mockDraftId } = req.params;
+      const picks = await storage.getMockDraftPicks(mockDraftId);
+      res.json(picks);
+    } catch (error) {
+      console.error("Error fetching mock draft picks:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch mock draft picks" 
+      });
+    }
+  });
+
+  app.post("/api/mock-drafts", async (req, res) => {
+    try {
+      const mockDraftData = insertMockDraftSchema.parse(req.body);
+      const mockDraft = await storage.createMockDraft(mockDraftData);
+      res.json(mockDraft);
+    } catch (error) {
+      console.error("Error creating mock draft:", error);
+      res.status(400).json({ 
+        message: error instanceof Error ? error.message : "Failed to create mock draft" 
+      });
+    }
+  });
+
+  app.put("/api/mock-drafts/:mockDraftId", async (req, res) => {
+    try {
+      const { mockDraftId } = req.params;
+      const updates = req.body;
+      const mockDraft = await storage.updateMockDraft(mockDraftId, updates);
+      if (!mockDraft) {
+        return res.status(404).json({ message: "Mock draft not found" });
+      }
+      res.json(mockDraft);
+    } catch (error) {
+      console.error("Error updating mock draft:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to update mock draft" 
+      });
+    }
+  });
+
+  app.post("/api/mock-drafts/:mockDraftId/picks", async (req, res) => {
+    try {
+      const { mockDraftId } = req.params;
+      const pickData = insertMockDraftPickSchema.parse({
+        ...req.body,
+        mock_draft_id: mockDraftId
+      });
+      const pick = await storage.addMockDraftPick(pickData);
+      res.json(pick);
+    } catch (error) {
+      console.error("Error adding mock draft pick:", error);
+      res.status(400).json({ 
+        message: error instanceof Error ? error.message : "Failed to add mock draft pick" 
+      });
+    }
+  });
+
+  app.get("/api/mock-drafts/picks/slot", async (req, res) => {
+    try {
+      const { round, pick } = req.query;
+      if (!round || !pick) {
+        return res.status(400).json({ message: "Round and pick parameters required" });
+      }
+      const picks = await storage.getPicksBySlot(parseInt(round as string), parseInt(pick as string));
+      res.json(picks);
+    } catch (error) {
+      console.error("Error fetching slot picks:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to fetch slot picks" 
       });
     }
   });
