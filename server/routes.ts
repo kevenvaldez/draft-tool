@@ -482,7 +482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Player Management Routes
   app.get("/api/players", async (req, res) => {
     try {
-      const { position, team, search, available } = req.query;
+      const { position, team, search, available, skipEnrichment } = req.query;
       let players = await storage.getAllPlayers();
 
       // Filter out non-rostered players by default
@@ -512,9 +512,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
 
-      // Enrich with KTC values if not present
-      for (const player of players) {
-        if (!player.ktc_value && player.first_name && player.last_name) {
+      // Skip KTC enrichment for faster initial loading if skipEnrichment=true
+      if (skipEnrichment !== 'true') {
+        // Only enrich missing KTC values for a subset to avoid slowdowns
+        const playersNeedingEnrichment = players.filter(p => !p.ktc_value && p.first_name && p.last_name).slice(0, 10);
+        
+        for (const player of playersNeedingEnrichment) {
           const fullName = `${player.first_name} ${player.last_name}`;
           const value = await ktcService.getPlayerValue(fullName, player.position || undefined);
           if (value) {

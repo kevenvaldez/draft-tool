@@ -29,15 +29,19 @@ export default function Home() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch players with KTC values
+  // Fetch players with KTC values (optimized for fast initial load)
   const { data: players = [], isLoading: playersLoading } = useQuery({
-    queryKey: ["/api/players"],
+    queryKey: ["/api/players", filters],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filters.position) params.append('position', filters.position);
       if (filters.team) params.append('team', filters.team);
       if (filters.search) params.append('search', filters.search);
       if (filters.availableOnly) params.append('availableOnly', 'true');
+      
+      // For initial fast loading, skip enrichment on first load
+      const isFirstLoad = !players.length;
+      if (isFirstLoad) params.append('skipEnrichment', 'true');
       
       const response = await fetch(`/api/players?${params}`);
       if (!response.ok) throw new Error('Failed to fetch players');
@@ -129,7 +133,7 @@ export default function Home() {
     try {
       const mockDraftData = {
         id: currentMockDraftId || `mock_${Date.now()}`,
-        user_id: connection.userId,
+        user_id: connection.user?.user_id || connection.userId,
         name: `Mock Draft - ${new Date().toLocaleDateString()}`,
         league_settings: JSON.stringify({
           format: 'superflex',
@@ -290,7 +294,7 @@ export default function Home() {
         {/* Analytics Panel */}
         {connection && (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-            <MockDraftHistory userId={connection.userId} />
+            <MockDraftHistory userId={connection.user?.user_id || connection.userId} />
             <DraftSlotTracker 
               totalRounds={15} 
               totalTeams={12} 

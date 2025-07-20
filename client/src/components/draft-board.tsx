@@ -249,9 +249,16 @@ export function DraftBoard({
                   <h3 className="text-lg font-semibold flex items-center">
                     <Users className="h-5 w-5 text-secondary mr-2" />
                     Available Players
-                    <Badge variant="secondary" className="ml-2">
-                      {availableCount}
-                    </Badge>
+                    {isLoading ? (
+                      <div className="ml-2 flex items-center space-x-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                        <span className="text-sm text-muted-foreground">Loading...</span>
+                      </div>
+                    ) : (
+                      <Badge variant="secondary" className="ml-2">
+                        {availableCount}
+                      </Badge>
+                    )}
                   </h3>
                   {mockDraftMode && (
                     <Badge variant="outline" className="text-accent border-accent">
