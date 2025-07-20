@@ -8,6 +8,16 @@ A full-stack fantasy football dynasty draft assistant that integrates with Sleep
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+**July 20, 2025:**
+- ✓ Successfully migrated project from Replit Agent to Replit environment
+- ✓ Fixed critical KTC data parsing issue that was causing player name/value mismatches
+- ✓ Improved player value matching logic to prevent incorrect score assignments
+- ✓ Added KTC refresh endpoint for manual cache clearing
+- ✓ Enhanced name parsing to properly separate player names, teams, and positions
+- ✓ Verified all core functionality working correctly
+
 ## System Architecture
 
 The application follows a modern full-stack architecture with clear separation between client and server concerns:

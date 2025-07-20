@@ -344,6 +344,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/ktc/refresh", async (req, res) => {
+    try {
+      const rankings = await ktcService.getRankings(true); // Force refresh
+      res.json({ 
+        message: "KTC rankings refreshed", 
+        playerCount: rankings.players.length,
+        lastUpdated: rankings.lastUpdated 
+      });
+    } catch (error) {
+      console.error("Error refreshing KTC rankings:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to refresh KTC rankings" 
+      });
+    }
+  });
+
   // Player Management Routes
   app.get("/api/players", async (req, res) => {
     try {

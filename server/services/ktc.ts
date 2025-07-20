@@ -43,26 +43,56 @@ export class KTCService {
         const $element = $(element);
         
         // Try multiple selectors to find player info
-        const name = $element.find('.player-name, .name, .playerName').text().trim() ||
-                    $element.find('[data-name]').attr('data-name') ||
-                    $element.text().split('\n')[0]?.trim();
+        let rawName = $element.find('.player-name, .name, .playerName').text().trim() ||
+                     $element.find('[data-name]').attr('data-name') ||
+                     $element.text().split('\n')[0]?.trim();
         
-        const position = $element.find('.position, .pos').text().trim() ||
-                        $element.find('[data-position]').attr('data-position');
+        // Parse the name which often contains team and position info concatenated
+        // Format: "Player NameTEAM" or "Player NameTEAMPOSITION"
+        let name = rawName;
+        let team = '';
+        let position = '';
+
+        if (rawName) {
+          // Extract team (usually 3 letters at the end, before position info)
+          const teamMatch = rawName.match(/([A-Z]{2,4})(?:[A-Z]{1,2}\d*.*)?$/);
+          if (teamMatch) {
+            team = teamMatch[1];
+            name = rawName.replace(teamMatch[0], '').trim();
+          }
+
+          // Try to extract position from the remaining text
+          const posMatch = $element.find('.position, .pos').text().trim() ||
+                          $element.find('[data-position]').attr('data-position') ||
+                          rawName.match(/([A-Z]{1,2}\d*)[\d\s\.y\.o\.Tier]*$/)?.[1] || '';
+          
+          position = posMatch;
+        }
+
+        // Get explicit team and position if available
+        const explicitTeam = $element.find('.team, .tm').text().trim() ||
+                           $element.find('[data-team]').attr('data-team');
         
-        const team = $element.find('.team, .tm').text().trim() ||
-                    $element.find('[data-team]').attr('data-team');
+        const explicitPosition = $element.find('.position, .pos').text().trim() ||
+                               $element.find('[data-position]').attr('data-position');
         
+        // Use explicit values if available, otherwise use parsed values
+        if (explicitTeam) team = explicitTeam;
+        if (explicitPosition) position = explicitPosition;
+
         const valueText = $element.find('.value, .ktc-value, [data-value]').text().trim() ||
                          $element.find('[data-value]').attr('data-value');
         
-        if (name && position) {
+        if (name && name.length > 1) {
           const value = parseInt(valueText.replace(/[^\d]/g, '')) || 0;
           
+          // Clean up the position to extract just the position part
+          const cleanPosition = position.replace(/[\d\s\.y\.o\.Tier]+.*$/, '').trim();
+          
           players.push({
-            name,
-            position,
-            team: team || '',
+            name: name.trim(),
+            position: cleanPosition || position,
+            team: team.trim(),
             value,
             rank: index + 1,
             overallRank: index + 1
@@ -142,10 +172,32 @@ export class KTCService {
   async getPlayerValue(playerName: string, position?: string): Promise<number | null> {
     try {
       const rankings = await this.getRankings();
-      const player = rankings.players.find(p => 
-        p.name.toLowerCase().includes(playerName.toLowerCase()) ||
-        playerName.toLowerCase().includes(p.name.toLowerCase())
+      
+      // First try exact match
+      let player = rankings.players.find(p => 
+        p.name.toLowerCase() === playerName.toLowerCase()
       );
+      
+      // If no exact match, try partial match but be more careful
+      if (!player) {
+        const nameParts = playerName.toLowerCase().split(' ');
+        player = rankings.players.find(p => {
+          const ktcNameParts = p.name.toLowerCase().split(' ');
+          
+          // Must match first and last name parts
+          if (nameParts.length >= 2 && ktcNameParts.length >= 2) {
+            const firstNameMatch = ktcNameParts.some(part => part.includes(nameParts[0]));
+            const lastNameMatch = ktcNameParts.some(part => part.includes(nameParts[nameParts.length - 1]));
+            
+            // Also check position if provided
+            const positionMatch = !position || p.position.toUpperCase().includes(position.toUpperCase());
+            
+            return firstNameMatch && lastNameMatch && positionMatch;
+          }
+          
+          return false;
+        });
+      }
       
       return player ? player.value : null;
     } catch (error) {
