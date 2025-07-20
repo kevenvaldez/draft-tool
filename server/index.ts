@@ -37,6 +37,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize data caching system
+  const { dataCacheService } = await import('./services/data-cache');
+  await dataCacheService.initializeCronJobs();
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

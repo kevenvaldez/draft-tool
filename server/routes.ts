@@ -52,56 +52,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Check if we already have player data to avoid expensive reload on every connection
-      const existingPlayers = await storage.getAllPlayers();
+      // Use the new data caching system for efficient player data management
+      const { dataCacheService } = await import('./services/data-cache');
       
-      if (existingPlayers.length === 0) {
-        console.log("No player data found, loading from Sleeper API...");
-        
-        // Auto-fetch and store Sleeper player data (only if database is empty)
-        try {
-          const players = await sleeperService.getAllPlayers();
-          const playerArray = Object.values(players);
-          
-          // Store only active NFL players on rosters
-          const activeNFLPlayers = playerArray
-            .filter(p => 
-              p.player_id && 
-              p.position && 
-              ['QB', 'RB', 'WR', 'TE'].includes(p.position) &&
-              p.team && // Must have a team
-              p.team !== 'FA' && // Not free agent
-              p.status === 'Active' // Active status
-            )
-            .slice(0, 800); // Increased limit for active players
-          
-          for (const player of activeNFLPlayers) {
-            try {
-              await storage.upsertPlayer({
-                id: player.player_id,
-                first_name: player.first_name,
-                last_name: player.last_name,
-                position: player.position,
-                team: player.team,
-                age: player.age,
-                years_exp: player.years_exp,
-                height: player.height,
-                weight: player.weight,
-                status: player.status,
-                injury_status: player.injury_status
-              });
-            } catch (error) {
-              console.warn(`Failed to store player ${player.player_id}:`, error instanceof Error ? error.message : error);
-            }
-          }
-          
-          console.log(`Stored ${activeNFLPlayers.length} active NFL players from Sleeper API`);
-        } catch (error) {
-          console.warn("Failed to auto-load Sleeper players:", error);
-          // Don't fail the connection if player loading fails
-        }
+      // Ensure player data is current (will refresh if stale)
+      const wasDataCurrent = await dataCacheService.ensureDataIsCurrent();
+      
+      if (!wasDataCurrent) {
+        console.log("Data refreshed automatically due to staleness");
       } else {
-        console.log(`Using existing player data (${existingPlayers.length} players)`);
+        const existingPlayers = await storage.getAllPlayers();
+        console.log(`Using cached player data (${existingPlayers.length} players)`);
       }
 
       // Save session for easy reconnection
@@ -362,6 +323,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error refreshing KTC rankings:", error);
       res.status(500).json({ 
         message: error instanceof Error ? error.message : "Failed to refresh KTC rankings" 
+      });
+    }
+  });
+
+  // Data Cache Management Routes
+  app.get("/api/data-cache/status", async (req, res) => {
+    try {
+      const { dataCacheService } = await import('./services/data-cache');
+      const stats = await dataCacheService.getDataStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Data cache status error:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to get cache status" 
+      });
+    }
+  });
+
+  app.post("/api/data-cache/refresh", async (req, res) => {
+    try {
+      const { dataCacheService } = await import('./services/data-cache');
+      const results = await dataCacheService.refreshAllData();
+      res.json({ 
+        message: "Data cache refreshed", 
+        results 
+      });
+    } catch (error) {
+      console.error("Data cache refresh error:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to refresh data cache" 
+      });
+    }
+  });
+
+  app.post("/api/data-cache/refresh/sleeper", async (req, res) => {
+    try {
+      const { dataCacheService } = await import('./services/data-cache');
+      const result = await dataCacheService.refreshSleeperPlayers();
+      res.json({ 
+        message: "Sleeper data refreshed", 
+        result 
+      });
+    } catch (error) {
+      console.error("Sleeper refresh error:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to refresh Sleeper data" 
+      });
+    }
+  });
+
+  app.post("/api/data-cache/refresh/ktc", async (req, res) => {
+    try {
+      const { dataCacheService } = await import('./services/data-cache');
+      const result = await dataCacheService.refreshKTCData();
+      res.json({ 
+        message: "KTC data refreshed", 
+        result 
+      });
+    } catch (error) {
+      console.error("KTC data refresh error:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to refresh KTC data" 
       });
     }
   });

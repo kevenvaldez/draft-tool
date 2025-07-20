@@ -3,10 +3,11 @@ import {
   type League, type InsertLeague, type Draft, type InsertDraft,
   type Player, type InsertPlayer, type DraftPick, type InsertDraftPick,
   type MockDraft, type InsertMockDraft, type Watchlist, type InsertWatchlist,
-  type Session, type InsertSession
+  type Session, type InsertSession, type DataCache, type InsertDataCache
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql } from "drizzle-orm";
+import { data_cache } from "@shared/schema";
 
 export interface IStorage {
   // League operations
@@ -57,6 +58,11 @@ export interface IStorage {
   createSession(session: InsertSession): Promise<Session>;
   updateSessionLastUsed(id: number): Promise<Session | undefined>;
   deleteSession(id: number): Promise<boolean>;
+
+  // Data cache operations
+  getDataCache(cacheKey: string): Promise<DataCache | undefined>;
+  upsertDataCache(cache: InsertDataCache): Promise<DataCache>;
+  getAllDataCaches(): Promise<DataCache[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -373,6 +379,30 @@ export class MemStorage implements IStorage {
   async deleteSession(id: number): Promise<boolean> {
     return this.sessions.delete(id);
   }
+
+  // Data cache operations (memory-based fallback)
+  async getDataCache(cacheKey: string): Promise<DataCache | undefined> {
+    // MemStorage doesn't persist cache data, always return undefined
+    return undefined;
+  }
+
+  async upsertDataCache(cache: InsertDataCache): Promise<DataCache> {
+    // MemStorage doesn't persist cache data, return a mock cache object
+    return {
+      id: 1,
+      cache_key: cache.cache_key,
+      last_updated: new Date(),
+      data_count: cache.data_count ?? 0,
+      status: cache.status ?? 'active',
+      metadata: cache.metadata ?? null,
+      created_at: new Date()
+    };
+  }
+
+  async getAllDataCaches(): Promise<DataCache[]> {
+    // MemStorage doesn't persist cache data
+    return [];
+  }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -615,6 +645,36 @@ export class DatabaseStorage implements IStorage {
   async deleteSession(id: number): Promise<boolean> {
     const result = await db.delete(sessions).where(eq(sessions.id, id));
     return (result.rowCount ?? 0) > 0;
+  }
+
+  // Data cache operations
+  async getDataCache(cacheKey: string): Promise<DataCache | undefined> {
+    const [cache] = await db.select().from(data_cache).where(eq(data_cache.cache_key, cacheKey));
+    return cache || undefined;
+  }
+
+  async upsertDataCache(insertCache: InsertDataCache): Promise<DataCache> {
+    const existing = await this.getDataCache(insertCache.cache_key);
+    
+    if (existing) {
+      const [updated] = await db.update(data_cache)
+        .set({
+          status: insertCache.status,
+          data_count: insertCache.data_count,
+          metadata: insertCache.metadata,
+          last_updated: new Date()
+        })
+        .where(eq(data_cache.cache_key, insertCache.cache_key))
+        .returning();
+      return updated;
+    } else {
+      const [cache] = await db.insert(data_cache).values(insertCache).returning();
+      return cache;
+    }
+  }
+
+  async getAllDataCaches(): Promise<DataCache[]> {
+    return await db.select().from(data_cache).orderBy(desc(data_cache.last_updated));
   }
 }
 

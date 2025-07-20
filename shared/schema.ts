@@ -84,6 +84,16 @@ export const sessions = pgTable("sessions", {
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const data_cache = pgTable("data_cache", {
+  id: serial("id").primaryKey(),
+  cache_key: text("cache_key").unique().notNull(),
+  last_updated: timestamp("last_updated").defaultNow().notNull(),
+  data_count: integer("data_count").default(0),
+  status: text("status").default("active").notNull(), // active, updating, failed
+  metadata: text("metadata"), // JSON string for additional info
+  created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const insertLeagueSchema = createInsertSchema(leagues).omit({
   created_at: true,
 });
@@ -117,6 +127,12 @@ export const insertSessionSchema = createInsertSchema(sessions).omit({
   last_used: true,
 });
 
+export const insertDataCacheSchema = createInsertSchema(data_cache).omit({
+  id: true,
+  created_at: true,
+  last_updated: true,
+});
+
 export type League = typeof leagues.$inferSelect;
 export type InsertLeague = z.infer<typeof insertLeagueSchema>;
 export type Draft = typeof drafts.$inferSelect;
@@ -131,3 +147,5 @@ export type Watchlist = typeof watchlists.$inferSelect;
 export type InsertWatchlist = z.infer<typeof insertWatchlistSchema>;
 export type Session = typeof sessions.$inferSelect;
 export type InsertSession = z.infer<typeof insertSessionSchema>;
+export type DataCache = typeof data_cache.$inferSelect;
+export type InsertDataCache = z.infer<typeof insertDataCacheSchema>;
