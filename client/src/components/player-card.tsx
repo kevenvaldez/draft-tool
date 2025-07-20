@@ -67,7 +67,7 @@ export function PlayerCard({
                   Age {player.age}
                 </Badge>
               )}
-              {player.years_exp !== undefined && (
+              {player.years_exp !== undefined && player.years_exp !== null && (
                 <Badge variant="outline" className="text-xs px-2 py-0.5 border-secondary/30 text-secondary">
                   {player.years_exp === 0 ? 'Rookie' : `${player.years_exp}Y`}
                 </Badge>
