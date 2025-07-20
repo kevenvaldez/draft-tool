@@ -384,6 +384,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Accurate KTC scraper with proper URL format
+  app.post("/api/ktc/accurate-scrape", async (req, res) => {
+    try {
+      console.log("Starting accurate KTC scrape with correct URL...");
+      const { scrapeAccurateKTCData } = await import('./scripts/accurate-ktc-scraper');
+      const result = await scrapeAccurateKTCData();
+      res.json({
+        message: "Accurate KTC scrape completed successfully",
+        ...result
+      });
+    } catch (error) {
+      console.error("Error during accurate KTC scrape:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to complete accurate KTC scrape" 
+      });
+    }
+  });
+
   // Data Cache Management Routes
   app.get("/api/data-cache/status", async (req, res) => {
     try {

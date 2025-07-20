@@ -24,37 +24,46 @@ export class KTCService {
   private async scrapeRankings(format: 'superflex' | '1qb' = 'superflex'): Promise<KTCPlayer[]> {
     try {
       const allPlayers: KTCPlayer[] = [];
-      let currentPage = 1;
-      const maxPages = 10; // KTC typically has about 10 pages for 500 players
+      let currentPage = 0; // Start from page 0 as per the URL format
+      const maxPages = 12; // Allow for more pages to get all ~450 players
       
-      while (currentPage <= maxPages) {
-        const url = `https://keeptradecut.com/dynasty-rankings?format=${format}&page=${currentPage}`;
-        console.log(`Fetching KTC page ${currentPage}...`);
+      while (currentPage < maxPages) {
+        // Use the correct KTC URL format with superflex format=2
+        const url = `https://keeptradecut.com/dynasty-rankings?page=${currentPage}&filters=QB|WR|RB|TE|RDP&format=2`;
+        console.log(`Fetching KTC superflex page ${currentPage}...`);
         
         const response = await axios.get(url, {
-          timeout: 15000,
+          timeout: 20000,
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1'
           }
         });
 
         const $ = cheerio.load(response.data);
-        const pagePlayersCount = $('.onePlayer, .player-row, [data-player]').length;
         
-        console.log(`Page ${currentPage}: Response status ${response.status}, found ${pagePlayersCount} player elements`);
+        // Look for the actual KTC player rows - they use specific classes
+        const playerRows = $('.player-row, .onePlayer, tr[data-player], .ranking-row, .player-item').length;
+        
+        console.log(`Page ${currentPage}: Found ${playerRows} player elements`);
         
         // If no players found on this page, we've reached the end
-        if (pagePlayersCount === 0) {
+        if (playerRows === 0) {
           console.log(`No more players found on page ${currentPage}, stopping pagination.`);
           break;
         }
         
-        const pageStartRank = (currentPage - 1) * 50 + 1;
+        const pageStartRank = currentPage * 50 + 1;
 
         // Look for player rows in the rankings table for this page
         $('.onePlayer, .player-row, [data-player]').each((index, element) => {
@@ -99,7 +108,7 @@ export class KTCService {
           if (explicitPosition) position = explicitPosition;
 
           const valueText = $element.find('.value, .ktc-value, [data-value]').text().trim() ||
-                           $element.find('[data-value]').attr('data-value');
+                           $element.find('[data-value]').attr('data-value') || '';
           
           if (name && name.length > 1) {
             const value = parseInt(valueText.replace(/[^\d]/g, '')) || 0;
@@ -120,7 +129,7 @@ export class KTCService {
           }
         });
         
-        console.log(`Page ${currentPage}: Found ${pagePlayersCount} players`);
+        console.log(`Page ${currentPage}: Processed ${allPlayers.length} total players so far`);
         
         // Add a small delay between requests to be respectful
         if (currentPage < maxPages) {
