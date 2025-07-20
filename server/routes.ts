@@ -52,17 +52,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      // Clear existing players and reload with active NFL players only
+      await storage.clearAllPlayers();
+      
       // Auto-fetch and store Sleeper player data
       try {
         const players = await sleeperService.getAllPlayers();
         const playerArray = Object.values(players);
         
-        // Store top 500 players to avoid overwhelming the system
-        const topPlayers = playerArray
-          .filter(p => p.player_id && p.position && ['QB', 'RB', 'WR', 'TE'].includes(p.position))
-          .slice(0, 500);
+        // Store only active NFL players on rosters
+        const activeNFLPlayers = playerArray
+          .filter(p => 
+            p.player_id && 
+            p.position && 
+            ['QB', 'RB', 'WR', 'TE'].includes(p.position) &&
+            p.team && // Must have a team
+            p.team !== 'FA' && // Not free agent
+            p.status === 'Active' // Active status
+          )
+          .slice(0, 800); // Increased limit for active players
         
-        for (const player of topPlayers) {
+        for (const player of activeNFLPlayers) {
           try {
             await storage.upsertPlayer({
               id: player.player_id,
@@ -82,7 +92,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
-        console.log(`Stored ${topPlayers.length} players from Sleeper API`);
+        console.log(`Stored ${activeNFLPlayers.length} active NFL players from Sleeper API`);
       } catch (error) {
         console.warn("Failed to auto-load Sleeper players:", error);
         // Don't fail the connection if player loading fails
@@ -297,7 +307,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { position, team, search, available } = req.query;
       let players = await storage.getAllPlayers();
 
-      // Apply filters
+      // Filter out non-rostered players by default
+      players = players.filter(p => 
+        p.team && 
+        p.team !== 'FA' && 
+        p.team !== null && 
+        p.status === 'Active' &&
+        p.position &&
+        ['QB', 'RB', 'WR', 'TE'].includes(p.position)
+      );
+
+      // Apply additional filters
       if (position && typeof position === 'string') {
         players = players.filter(p => p.position === position);
       }
@@ -305,7 +325,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         players = players.filter(p => p.team === team);
       }
       if (search && typeof search === 'string') {
-        players = await storage.searchPlayers(search);
+        const searchLower = search.toLowerCase();
+        players = players.filter(p => 
+          p.first_name?.toLowerCase().includes(searchLower) ||
+          p.last_name?.toLowerCase().includes(searchLower) ||
+          p.team?.toLowerCase().includes(searchLower) ||
+          p.position?.toLowerCase().includes(searchLower)
+        );
       }
 
       // Enrich with KTC values if not present

@@ -27,6 +27,7 @@ export interface IStorage {
   updatePlayer(id: string, updates: Partial<InsertPlayer>): Promise<Player | undefined>;
   upsertPlayer(player: InsertPlayer): Promise<Player>;
   bulkUpdatePlayers(players: Player[]): Promise<void>;
+  clearAllPlayers(): Promise<void>;
 
   // Draft pick operations
   getDraftPick(id: number): Promise<DraftPick | undefined>;
@@ -193,6 +194,10 @@ export class MemStorage implements IStorage {
     for (const player of players) {
       this.players.set(player.id, { ...player, updated_at: new Date() });
     }
+  }
+
+  async clearAllPlayers(): Promise<void> {
+    this.players.clear();
   }
 
   async getDraftPick(id: number): Promise<DraftPick | undefined> {
