@@ -12,12 +12,14 @@ export interface IStorage {
   // League operations
   getLeague(id: string): Promise<League | undefined>;
   createLeague(league: InsertLeague): Promise<League>;
+  upsertLeague(league: InsertLeague): Promise<League>;
   updateLeague(id: string, updates: Partial<InsertLeague>): Promise<League | undefined>;
 
   // Draft operations
   getDraft(id: string): Promise<Draft | undefined>;
   getDraftsByLeague(leagueId: string): Promise<Draft[]>;
   createDraft(draft: InsertDraft): Promise<Draft>;
+  upsertDraft(draft: InsertDraft): Promise<Draft>;
   updateDraft(id: string, updates: Partial<InsertDraft>): Promise<Draft | undefined>;
 
   // Player operations
@@ -96,6 +98,17 @@ export class MemStorage implements IStorage {
     return league;
   }
 
+  async upsertLeague(insertLeague: InsertLeague): Promise<League> {
+    const existing = this.leagues.get(insertLeague.id);
+    if (existing) {
+      const updated = { ...existing, ...insertLeague };
+      this.leagues.set(insertLeague.id, updated);
+      return updated;
+    } else {
+      return this.createLeague(insertLeague);
+    }
+  }
+
   async updateLeague(id: string, updates: Partial<InsertLeague>): Promise<League | undefined> {
     const existing = this.leagues.get(id);
     if (!existing) return undefined;
@@ -122,6 +135,17 @@ export class MemStorage implements IStorage {
     };
     this.drafts.set(draft.id, draft);
     return draft;
+  }
+
+  async upsertDraft(insertDraft: InsertDraft): Promise<Draft> {
+    const existing = this.drafts.get(insertDraft.id);
+    if (existing) {
+      const updated = { ...existing, ...insertDraft };
+      this.drafts.set(insertDraft.id, updated);
+      return updated;
+    } else {
+      return this.createDraft(insertDraft);
+    }
   }
 
   async updateDraft(id: string, updates: Partial<InsertDraft>): Promise<Draft | undefined> {
@@ -363,6 +387,30 @@ export class DatabaseStorage implements IStorage {
     return league;
   }
 
+  async upsertLeague(insertLeague: InsertLeague): Promise<League> {
+    // Try to get existing league first
+    const existing = await this.getLeague(insertLeague.id);
+    if (existing) {
+      // Update existing league
+      const [updated] = await db.update(leagues)
+        .set({
+          name: insertLeague.name,
+          sport: insertLeague.sport,
+          season: insertLeague.season,
+          status: insertLeague.status,
+          total_rosters: insertLeague.total_rosters,
+          settings: insertLeague.settings
+        })
+        .where(eq(leagues.id, insertLeague.id))
+        .returning();
+      return updated;
+    } else {
+      // Create new league
+      const [league] = await db.insert(leagues).values(insertLeague).returning();
+      return league;
+    }
+  }
+
   async updateLeague(id: string, updates: Partial<InsertLeague>): Promise<League | undefined> {
     const [league] = await db.update(leagues).set(updates).where(eq(leagues.id, id)).returning();
     return league || undefined;
@@ -381,6 +429,31 @@ export class DatabaseStorage implements IStorage {
   async createDraft(insertDraft: InsertDraft): Promise<Draft> {
     const [draft] = await db.insert(drafts).values(insertDraft).returning();
     return draft;
+  }
+
+  async upsertDraft(insertDraft: InsertDraft): Promise<Draft> {
+    // Try to get existing draft first
+    const existing = await this.getDraft(insertDraft.id);
+    if (existing) {
+      // Update existing draft
+      const [updated] = await db.update(drafts)
+        .set({
+          league_id: insertDraft.league_id,
+          type: insertDraft.type,
+          status: insertDraft.status,
+          sport: insertDraft.sport,
+          season: insertDraft.season,
+          settings: insertDraft.settings,
+          start_time: insertDraft.start_time
+        })
+        .where(eq(drafts.id, insertDraft.id))
+        .returning();
+      return updated;
+    } else {
+      // Create new draft
+      const [draft] = await db.insert(drafts).values(insertDraft).returning();
+      return draft;
+    }
   }
 
   async updateDraft(id: string, updates: Partial<InsertDraft>): Promise<Draft | undefined> {

@@ -16,7 +16,10 @@ Preferred communication style: Simple, everyday language.
 - ✓ Improved player value matching logic to prevent incorrect score assignments
 - ✓ Added KTC refresh endpoint for manual cache clearing
 - ✓ Enhanced name parsing to properly separate player names, teams, and positions
-- ✓ Verified all core functionality working correctly
+- ✓ Enhanced KTC scraping to fetch all 450+ players across multiple pages instead of just 50
+- ✓ Fixed database constraint violation errors with upsert logic for persistent storage
+- ✓ Added proper multi-page pagination for comprehensive KeepTradeCut player data
+- ✓ Verified all core functionality working correctly with complete dataset
 
 ## System Architecture
 

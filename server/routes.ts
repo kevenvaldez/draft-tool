@@ -26,9 +26,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Store league and draft data
+      // Store league and draft data (upsert to handle existing records)
       if (validation.league) {
-        await storage.createLeague({
+        await storage.upsertLeague({
           id: validation.league.league_id,
           name: validation.league.name,
           sport: validation.league.sport,
@@ -40,7 +40,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (validation.draft) {
-        await storage.createDraft({
+        await storage.upsertDraft({
           id: validation.draft.draft_id,
           league_id: validation.draft.league_id,
           type: validation.draft.type,
