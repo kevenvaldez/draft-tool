@@ -344,6 +344,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Clear and rescrape all player data from KTC
+  app.post("/api/ktc/fresh-scrape", async (req, res) => {
+    try {
+      console.log("Starting fresh KTC scrape...");
+      const { clearAndRescrapeKTC } = await import('./scripts/fresh-ktc-scrape');
+      const result = await clearAndRescrapeKTC();
+      res.json({
+        message: "Fresh KTC scrape completed successfully",
+        ...result
+      });
+    } catch (error) {
+      console.error("Error during fresh KTC scrape:", error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : "Failed to complete fresh KTC scrape" 
+      });
+    }
+  });
+
   // Data Cache Management Routes
   app.get("/api/data-cache/status", async (req, res) => {
     try {
