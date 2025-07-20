@@ -1,0 +1,253 @@
+import { 
+  leagues, drafts, players, draft_picks, mock_drafts, watchlists,
+  type League, type InsertLeague, type Draft, type InsertDraft,
+  type Player, type InsertPlayer, type DraftPick, type InsertDraftPick,
+  type MockDraft, type InsertMockDraft, type Watchlist, type InsertWatchlist
+} from "@shared/schema";
+
+export interface IStorage {
+  // League operations
+  getLeague(id: string): Promise<League | undefined>;
+  createLeague(league: InsertLeague): Promise<League>;
+  updateLeague(id: string, updates: Partial<InsertLeague>): Promise<League | undefined>;
+
+  // Draft operations
+  getDraft(id: string): Promise<Draft | undefined>;
+  getDraftsByLeague(leagueId: string): Promise<Draft[]>;
+  createDraft(draft: InsertDraft): Promise<Draft>;
+  updateDraft(id: string, updates: Partial<InsertDraft>): Promise<Draft | undefined>;
+
+  // Player operations
+  getPlayer(id: string): Promise<Player | undefined>;
+  getAllPlayers(): Promise<Player[]>;
+  getPlayersByPosition(position: string): Promise<Player[]>;
+  getPlayersByTeam(team: string): Promise<Player[]>;
+  searchPlayers(query: string): Promise<Player[]>;
+  createPlayer(player: InsertPlayer): Promise<Player>;
+  updatePlayer(id: string, updates: Partial<InsertPlayer>): Promise<Player | undefined>;
+  bulkUpdatePlayers(players: Player[]): Promise<void>;
+
+  // Draft pick operations
+  getDraftPick(id: number): Promise<DraftPick | undefined>;
+  getDraftPicks(draftId: string): Promise<DraftPick[]>;
+  createDraftPick(pick: InsertDraftPick): Promise<DraftPick>;
+  updateDraftPick(id: number, updates: Partial<InsertDraftPick>): Promise<DraftPick | undefined>;
+
+  // Mock draft operations
+  getMockDraft(id: string): Promise<MockDraft | undefined>;
+  getMockDraftsByUser(userId: string): Promise<MockDraft[]>;
+  createMockDraft(mockDraft: InsertMockDraft): Promise<MockDraft>;
+  updateMockDraft(id: string, updates: Partial<InsertMockDraft>): Promise<MockDraft | undefined>;
+  deleteMockDraft(id: string): Promise<boolean>;
+
+  // Watchlist operations
+  getWatchlist(userId: string): Promise<Watchlist[]>;
+  addToWatchlist(item: InsertWatchlist): Promise<Watchlist>;
+  removeFromWatchlist(id: number): Promise<boolean>;
+}
+
+export class MemStorage implements IStorage {
+  private leagues: Map<string, League>;
+  private drafts: Map<string, Draft>;
+  private players: Map<string, Player>;
+  private draftPicks: Map<number, DraftPick>;
+  private mockDrafts: Map<string, MockDraft>;
+  private watchlists: Map<number, Watchlist>;
+  private draftPickId: number;
+  private watchlistId: number;
+
+  constructor() {
+    this.leagues = new Map();
+    this.drafts = new Map();
+    this.players = new Map();
+    this.draftPicks = new Map();
+    this.mockDrafts = new Map();
+    this.watchlists = new Map();
+    this.draftPickId = 1;
+    this.watchlistId = 1;
+  }
+
+  async getLeague(id: string): Promise<League | undefined> {
+    return this.leagues.get(id);
+  }
+
+  async createLeague(insertLeague: InsertLeague): Promise<League> {
+    const league: League = {
+      ...insertLeague,
+      created_at: new Date(),
+    };
+    this.leagues.set(league.id, league);
+    return league;
+  }
+
+  async updateLeague(id: string, updates: Partial<InsertLeague>): Promise<League | undefined> {
+    const existing = this.leagues.get(id);
+    if (!existing) return undefined;
+    
+    const updated = { ...existing, ...updates };
+    this.leagues.set(id, updated);
+    return updated;
+  }
+
+  async getDraft(id: string): Promise<Draft | undefined> {
+    return this.drafts.get(id);
+  }
+
+  async getDraftsByLeague(leagueId: string): Promise<Draft[]> {
+    return Array.from(this.drafts.values()).filter(draft => draft.league_id === leagueId);
+  }
+
+  async createDraft(insertDraft: InsertDraft): Promise<Draft> {
+    const draft: Draft = {
+      ...insertDraft,
+      created_at: new Date(),
+    };
+    this.drafts.set(draft.id, draft);
+    return draft;
+  }
+
+  async updateDraft(id: string, updates: Partial<InsertDraft>): Promise<Draft | undefined> {
+    const existing = this.drafts.get(id);
+    if (!existing) return undefined;
+    
+    const updated = { ...existing, ...updates };
+    this.drafts.set(id, updated);
+    return updated;
+  }
+
+  async getPlayer(id: string): Promise<Player | undefined> {
+    return this.players.get(id);
+  }
+
+  async getAllPlayers(): Promise<Player[]> {
+    return Array.from(this.players.values());
+  }
+
+  async getPlayersByPosition(position: string): Promise<Player[]> {
+    return Array.from(this.players.values()).filter(player => player.position === position);
+  }
+
+  async getPlayersByTeam(team: string): Promise<Player[]> {
+    return Array.from(this.players.values()).filter(player => player.team === team);
+  }
+
+  async searchPlayers(query: string): Promise<Player[]> {
+    const lowercaseQuery = query.toLowerCase();
+    return Array.from(this.players.values()).filter(player => 
+      player.first_name?.toLowerCase().includes(lowercaseQuery) ||
+      player.last_name?.toLowerCase().includes(lowercaseQuery) ||
+      player.team?.toLowerCase().includes(lowercaseQuery) ||
+      player.position?.toLowerCase().includes(lowercaseQuery)
+    );
+  }
+
+  async createPlayer(insertPlayer: InsertPlayer): Promise<Player> {
+    const player: Player = {
+      ...insertPlayer,
+      updated_at: new Date(),
+    };
+    this.players.set(player.id, player);
+    return player;
+  }
+
+  async updatePlayer(id: string, updates: Partial<InsertPlayer>): Promise<Player | undefined> {
+    const existing = this.players.get(id);
+    if (!existing) return undefined;
+    
+    const updated = { ...existing, ...updates, updated_at: new Date() };
+    this.players.set(id, updated);
+    return updated;
+  }
+
+  async bulkUpdatePlayers(players: Player[]): Promise<void> {
+    for (const player of players) {
+      this.players.set(player.id, { ...player, updated_at: new Date() });
+    }
+  }
+
+  async getDraftPick(id: number): Promise<DraftPick | undefined> {
+    return this.draftPicks.get(id);
+  }
+
+  async getDraftPicks(draftId: string): Promise<DraftPick[]> {
+    return Array.from(this.draftPicks.values())
+      .filter(pick => pick.draft_id === draftId)
+      .sort((a, b) => a.pick_no - b.pick_no);
+  }
+
+  async createDraftPick(insertPick: InsertDraftPick): Promise<DraftPick> {
+    const id = this.draftPickId++;
+    const pick: DraftPick = {
+      ...insertPick,
+      id,
+      picked_at: insertPick.player_id ? new Date() : null,
+    };
+    this.draftPicks.set(id, pick);
+    return pick;
+  }
+
+  async updateDraftPick(id: number, updates: Partial<InsertDraftPick>): Promise<DraftPick | undefined> {
+    const existing = this.draftPicks.get(id);
+    if (!existing) return undefined;
+    
+    const updated = { 
+      ...existing, 
+      ...updates,
+      picked_at: updates.player_id ? new Date() : existing.picked_at
+    };
+    this.draftPicks.set(id, updated);
+    return updated;
+  }
+
+  async getMockDraft(id: string): Promise<MockDraft | undefined> {
+    return this.mockDrafts.get(id);
+  }
+
+  async getMockDraftsByUser(userId: string): Promise<MockDraft[]> {
+    return Array.from(this.mockDrafts.values()).filter(draft => draft.user_id === userId);
+  }
+
+  async createMockDraft(insertMockDraft: InsertMockDraft): Promise<MockDraft> {
+    const mockDraft: MockDraft = {
+      ...insertMockDraft,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+    this.mockDrafts.set(mockDraft.id, mockDraft);
+    return mockDraft;
+  }
+
+  async updateMockDraft(id: string, updates: Partial<InsertMockDraft>): Promise<MockDraft | undefined> {
+    const existing = this.mockDrafts.get(id);
+    if (!existing) return undefined;
+    
+    const updated = { ...existing, ...updates, updated_at: new Date() };
+    this.mockDrafts.set(id, updated);
+    return updated;
+  }
+
+  async deleteMockDraft(id: string): Promise<boolean> {
+    return this.mockDrafts.delete(id);
+  }
+
+  async getWatchlist(userId: string): Promise<Watchlist[]> {
+    return Array.from(this.watchlists.values()).filter(item => item.user_id === userId);
+  }
+
+  async addToWatchlist(insertWatchlist: InsertWatchlist): Promise<Watchlist> {
+    const id = this.watchlistId++;
+    const item: Watchlist = {
+      ...insertWatchlist,
+      id,
+      created_at: new Date(),
+    };
+    this.watchlists.set(id, item);
+    return item;
+  }
+
+  async removeFromWatchlist(id: number): Promise<boolean> {
+    return this.watchlists.delete(id);
+  }
+}
+
+export const storage = new MemStorage();
