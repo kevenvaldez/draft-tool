@@ -34,8 +34,9 @@ The application follows a modern full-stack architecture with clear separation b
 - **Runtime**: Node.js with TypeScript
 - **Framework**: Express.js for REST API endpoints
 - **Database ORM**: Drizzle ORM with PostgreSQL dialect
-- **Database Provider**: Neon serverless PostgreSQL
-- **Session Management**: PostgreSQL-based session storage
+- **Database Provider**: PostgreSQL on Replit
+- **Storage**: Database-backed persistence for all data including sessions
+- **Session Management**: PostgreSQL-based persistent session storage
 - **External APIs**: Integration with Sleeper API and KeepTradeCut scraping
 
 ### Project Structure

@@ -5,6 +5,8 @@ import {
   type MockDraft, type InsertMockDraft, type Watchlist, type InsertWatchlist,
   type Session, type InsertSession
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
   // League operations
@@ -349,4 +351,198 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  // League operations
+  async getLeague(id: string): Promise<League | undefined> {
+    const [league] = await db.select().from(leagues).where(eq(leagues.id, id));
+    return league || undefined;
+  }
+
+  async createLeague(insertLeague: InsertLeague): Promise<League> {
+    const [league] = await db.insert(leagues).values(insertLeague).returning();
+    return league;
+  }
+
+  async updateLeague(id: string, updates: Partial<InsertLeague>): Promise<League | undefined> {
+    const [league] = await db.update(leagues).set(updates).where(eq(leagues.id, id)).returning();
+    return league || undefined;
+  }
+
+  // Draft operations
+  async getDraft(id: string): Promise<Draft | undefined> {
+    const [draft] = await db.select().from(drafts).where(eq(drafts.id, id));
+    return draft || undefined;
+  }
+
+  async getDraftsByLeague(leagueId: string): Promise<Draft[]> {
+    return await db.select().from(drafts).where(eq(drafts.league_id, leagueId));
+  }
+
+  async createDraft(insertDraft: InsertDraft): Promise<Draft> {
+    const [draft] = await db.insert(drafts).values(insertDraft).returning();
+    return draft;
+  }
+
+  async updateDraft(id: string, updates: Partial<InsertDraft>): Promise<Draft | undefined> {
+    const [draft] = await db.update(drafts).set(updates).where(eq(drafts.id, id)).returning();
+    return draft || undefined;
+  }
+
+  // Player operations
+  async getPlayer(id: string): Promise<Player | undefined> {
+    const [player] = await db.select().from(players).where(eq(players.id, id));
+    return player || undefined;
+  }
+
+  async getAllPlayers(): Promise<Player[]> {
+    return await db.select().from(players);
+  }
+
+  async getPlayersByPosition(position: string): Promise<Player[]> {
+    return await db.select().from(players).where(eq(players.position, position));
+  }
+
+  async getPlayersByTeam(team: string): Promise<Player[]> {
+    return await db.select().from(players).where(eq(players.team, team));
+  }
+
+  async searchPlayers(query: string): Promise<Player[]> {
+    const searchTerm = `%${query.toLowerCase()}%`;
+    return await db.select().from(players).where(
+      sql`lower(${players.first_name}) LIKE ${searchTerm} OR 
+          lower(${players.last_name}) LIKE ${searchTerm} OR 
+          lower(${players.team}) LIKE ${searchTerm} OR 
+          lower(${players.position}) LIKE ${searchTerm}`
+    );
+  }
+
+  async createPlayer(insertPlayer: InsertPlayer): Promise<Player> {
+    const [player] = await db.insert(players).values(insertPlayer).returning();
+    return player;
+  }
+
+  async updatePlayer(id: string, updates: Partial<InsertPlayer>): Promise<Player | undefined> {
+    const [player] = await db.update(players).set({ ...updates, updated_at: new Date() }).where(eq(players.id, id)).returning();
+    return player || undefined;
+  }
+
+  async upsertPlayer(insertPlayer: InsertPlayer): Promise<Player> {
+    const [player] = await db.insert(players).values(insertPlayer)
+      .onConflictDoUpdate({
+        target: players.id,
+        set: { ...insertPlayer, updated_at: new Date() }
+      }).returning();
+    return player;
+  }
+
+  async bulkUpdatePlayers(playerUpdates: Player[]): Promise<void> {
+    for (const player of playerUpdates) {
+      await this.updatePlayer(player.id, player);
+    }
+  }
+
+  async clearAllPlayers(): Promise<void> {
+    await db.delete(players);
+  }
+
+  // Draft pick operations
+  async getDraftPick(id: number): Promise<DraftPick | undefined> {
+    const [pick] = await db.select().from(draft_picks).where(eq(draft_picks.id, id));
+    return pick || undefined;
+  }
+
+  async getDraftPicks(draftId: string): Promise<DraftPick[]> {
+    return await db.select().from(draft_picks).where(eq(draft_picks.draft_id, draftId));
+  }
+
+  async createDraftPick(insertPick: InsertDraftPick): Promise<DraftPick> {
+    const [pick] = await db.insert(draft_picks).values({
+      ...insertPick,
+      picked_at: insertPick.player_id ? new Date() : null
+    }).returning();
+    return pick;
+  }
+
+  async updateDraftPick(id: number, updates: Partial<InsertDraftPick>): Promise<DraftPick | undefined> {
+    const [pick] = await db.update(draft_picks).set({
+      ...updates,
+      picked_at: updates.player_id ? new Date() : undefined
+    }).where(eq(draft_picks.id, id)).returning();
+    return pick || undefined;
+  }
+
+  // Mock draft operations
+  async getMockDraft(id: string): Promise<MockDraft | undefined> {
+    const [mockDraft] = await db.select().from(mock_drafts).where(eq(mock_drafts.id, id));
+    return mockDraft || undefined;
+  }
+
+  async getMockDraftsByUser(userId: string): Promise<MockDraft[]> {
+    return await db.select().from(mock_drafts).where(eq(mock_drafts.user_id, userId)).orderBy(desc(mock_drafts.updated_at));
+  }
+
+  async createMockDraft(insertMockDraft: InsertMockDraft): Promise<MockDraft> {
+    const [mockDraft] = await db.insert(mock_drafts).values(insertMockDraft).returning();
+    return mockDraft;
+  }
+
+  async updateMockDraft(id: string, updates: Partial<InsertMockDraft>): Promise<MockDraft | undefined> {
+    const [mockDraft] = await db.update(mock_drafts).set({ ...updates, updated_at: new Date() }).where(eq(mock_drafts.id, id)).returning();
+    return mockDraft || undefined;
+  }
+
+  async deleteMockDraft(id: string): Promise<boolean> {
+    const result = await db.delete(mock_drafts).where(eq(mock_drafts.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // Watchlist operations
+  async getWatchlist(userId: string): Promise<Watchlist[]> {
+    return await db.select().from(watchlists).where(eq(watchlists.user_id, userId)).orderBy(desc(watchlists.created_at));
+  }
+
+  async addToWatchlist(insertWatchlist: InsertWatchlist): Promise<Watchlist> {
+    const [item] = await db.insert(watchlists).values(insertWatchlist).returning();
+    return item;
+  }
+
+  async removeFromWatchlist(id: number): Promise<boolean> {
+    const result = await db.delete(watchlists).where(eq(watchlists.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // Session operations
+  async getSessions(): Promise<Session[]> {
+    return await db.select().from(sessions).orderBy(desc(sessions.last_used));
+  }
+
+  async createSession(insertSession: InsertSession): Promise<Session> {
+    // Check if session already exists for this combination
+    const [existingSession] = await db.select().from(sessions).where(
+      sql`${sessions.league_id} = ${insertSession.league_id} AND 
+          ${sessions.draft_id} = ${insertSession.draft_id} AND 
+          ${sessions.user_id} = ${insertSession.user_id}`
+    );
+
+    if (existingSession) {
+      // Update last_used for existing session
+      const [updated] = await db.update(sessions).set({ last_used: new Date() }).where(eq(sessions.id, existingSession.id)).returning();
+      return updated;
+    }
+
+    const [session] = await db.insert(sessions).values(insertSession).returning();
+    return session;
+  }
+
+  async updateSessionLastUsed(id: number): Promise<Session | undefined> {
+    const [session] = await db.update(sessions).set({ last_used: new Date() }).where(eq(sessions.id, id)).returning();
+    return session || undefined;
+  }
+
+  async deleteSession(id: number): Promise<boolean> {
+    const result = await db.delete(sessions).where(eq(sessions.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+}
+
+export const storage = new DatabaseStorage();
