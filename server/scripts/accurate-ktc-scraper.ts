@@ -194,6 +194,23 @@ export async function scrapeAccurateKTCData(): Promise<{
     console.log('Inserting new KTC data...');
     let insertedCount = 0;
     
+    // Calculate position-specific rankings
+    const playersByPosition = allPlayers.reduce((acc, player) => {
+      if (!acc[player.position]) acc[player.position] = [];
+      acc[player.position].push(player);
+      return acc;
+    }, {} as Record<string, typeof allPlayers>);
+    
+    // Sort each position by KTC value and assign position ranks
+    Object.values(playersByPosition).forEach(positionPlayers => {
+      positionPlayers
+        .filter(p => p.ktc_value > 0)
+        .sort((a, b) => b.ktc_value - a.ktc_value)
+        .forEach((player, index) => {
+          player.position_rank = index + 1;
+        });
+    });
+    
     for (const player of allPlayers) {
       try {
         await db.insert(players).values({
@@ -203,7 +220,8 @@ export async function scrapeAccurateKTCData(): Promise<{
           position: player.position,
           team: player.team || null,
           ktc_value: player.ktc_value,
-          ktc_rank: player.ktc_rank,
+          ktc_rank: player.ktc_rank, // Global rank
+          position_rank: (player as any).position_rank || null, // Position-specific rank
           status: 'Active',
           age: null,
           years_exp: null,

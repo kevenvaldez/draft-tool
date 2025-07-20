@@ -39,6 +39,7 @@ export const players = pgTable("players", {
   injury_status: text("injury_status"),
   ktc_value: integer("ktc_value"),
   ktc_rank: integer("ktc_rank"),
+  position_rank: integer("position_rank"), // Position-specific ranking (QB1, RB1, etc.)
   updated_at: timestamp("updated_at").defaultNow(),
 });
 

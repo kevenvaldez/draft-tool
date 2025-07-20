@@ -108,13 +108,49 @@ export default function Home() {
     setSelectedPlayer(player);
   };
 
-  const handleDraftPlayer = (playerId: string) => {
-    if (mockDraftMode) {
+  const handleDraftPlayer = async (playerId: string) => {
+    if (mockDraftMode && currentMockDraftId) {
+      // Add to local state
       setDraftedPlayers(prev => new Set([...prev, playerId]));
-      toast({
-        title: "Player drafted!",
-        description: "Player added to mock draft",
-      });
+      
+      // Find player details
+      const player = players.find(p => p.id === playerId);
+      if (!player) return;
+      
+      // Calculate draft position
+      const currentPick = draftedPlayers.size + 1;
+      const round = Math.ceil(currentPick / 12);
+      const roundPick = ((currentPick - 1) % 12) + 1;
+      
+      try {
+        // Save pick to database
+        const pickData = {
+          mock_draft_id: currentMockDraftId,
+          round,
+          pick: currentPick,
+          round_pick: roundPick,
+          team_id: `team_${Math.ceil(Math.random() * 12)}`, // Random team for mock
+          player_id: playerId,
+          player_name: `${player.first_name} ${player.last_name}`,
+          player_position: player.position,
+          player_team: player.team,
+          is_user_pick: true
+        };
+        
+        await apiRequest("POST", `/api/mock-drafts/${currentMockDraftId}/picks`, pickData);
+        
+        toast({
+          title: "Player drafted!",
+          description: `${player.first_name} ${player.last_name} - Round ${round}, Pick ${roundPick}`,
+        });
+      } catch (error) {
+        console.error('Error saving pick:', error);
+        toast({
+          title: "Draft failed",
+          description: "Could not save pick to database",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -311,17 +347,71 @@ export default function Home() {
             onPlayerSelect={handlePlayerSelect}
             isLoading={isLoading}
             mockDraftMode={mockDraftMode}
-            onToggleMockDraft={() => {
-              if (mockDraftMode) {
-                // When exiting mock draft mode, reset drafted players
+            onToggleMockDraft={async () => {
+              if (!mockDraftMode) {
+                // Start mock draft - create mock draft session
+                try {
+                  const mockDraftData = {
+                    id: `mock_${Date.now()}`,
+                    user_id: connection?.user?.user_id || connection?.userId || 'anonymous',
+                    name: `Mock Draft - ${new Date().toLocaleDateString()}`,
+                    league_settings: JSON.stringify({
+                      format: 'superflex',
+                      rounds: 15,
+                      teams: 12
+                    }),
+                    draft_order: JSON.stringify(Array.from({length: 12}, (_, i) => i + 1)),
+                    picks: JSON.stringify([]),
+                    current_pick: 1,
+                    is_completed: false,
+                    total_rounds: 15,
+                    total_teams: 12,
+                    notes: `Mock draft session started`
+                  };
+
+                  const response = await apiRequest("POST", "/api/mock-drafts", mockDraftData);
+                  const result = await response.json();
+                  
+                  setCurrentMockDraftId(result.id);
+                  setMockDraftMode(true);
+                  
+                  toast({
+                    title: "Mock Draft Started",
+                    description: "You can now draft players in mock mode",
+                  });
+                } catch (error) {
+                  console.error('Error starting mock draft:', error);
+                  toast({
+                    title: "Failed to start mock draft",
+                    description: "Could not create mock draft session",
+                    variant: "destructive"
+                  });
+                }
+              } else {
+                // End mock draft - mark as completed
+                if (currentMockDraftId) {
+                  try {
+                    await apiRequest("PUT", `/api/mock-drafts/${currentMockDraftId}`, {
+                      is_completed: true,
+                      notes: `Mock draft completed with ${draftedPlayers.size} picks`
+                    });
+                  } catch (error) {
+                    console.error('Error ending mock draft:', error);
+                  }
+                }
+                
+                setMockDraftMode(false);
                 setDraftedPlayers(new Set());
                 setCurrentMockDraftId(null);
+                
+                // Invalidate mock drafts cache to refresh history
+                queryClient.invalidateQueries({ queryKey: ["/api/mock-drafts"] });
+                
                 toast({
                   title: "Mock Draft Ended",
-                  description: "All players are now available again",
+                  description: "Your mock draft session has been saved",
                 });
               }
-              setMockDraftMode(!mockDraftMode);
             }}
             draftedPlayers={draftedPlayers}
             onDraftPlayer={handleDraftPlayer}

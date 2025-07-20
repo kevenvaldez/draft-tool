@@ -84,11 +84,11 @@ export function PlayerCard({
             </span>
           </div>
           
-          {player.ktc_rank && (
+          {(player.position_rank || player.ktc_rank) && (
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Rank:</span>
               <span className="text-sm font-semibold">
-                #{player.ktc_rank} {player.position}
+                {player.position_rank ? `${player.position}${player.position_rank}` : `#${player.ktc_rank} overall`}
               </span>
             </div>
           )}
